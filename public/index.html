@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AgroVisión — Ingeniero agrónomo IA</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -31,16 +32,86 @@ body *{visibility:hidden}
 .print-logo{display:block!important}
 }
 .print-logo{display:none}
+#authModal{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center}
+#authModal.open{display:flex}
+.auth-tab-active{border-bottom:2px solid #16a34a;color:#065f46;font-weight:700}
+.auth-tab-inactive{border-bottom:2px solid transparent;color:#6b7280}
 </style>
 </head>
 <body class="leaf-bg min-h-screen">
 <div class="max-w-6xl mx-auto p-4 md:p-8">
 <header class="text-white mb-6">
+<div class="flex items-center justify-between flex-wrap gap-3">
 <div class="flex items-center gap-3">
 <div class="text-5xl">🌱</div>
 <div><h1 class="text-3xl md:text-4xl font-bold">AgroVisión</h1>
 <p class="text-emerald-100 text-sm">Tu ingeniero agrónomo asistido por IA — pasto, cultivos y forrajeras</p></div>
+</div>
+<!-- Área de usuario -->
+<div id="userArea" class="flex items-center gap-2">
+  <!-- Estado no logueado -->
+  <div id="areaGuest" class="flex items-center gap-2">
+    <span class="text-xs text-emerald-200 hidden md:inline">⚡ 3 análisis gratis/día</span>
+    <button onclick="openAuthModal('login')" class="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-3 py-1.5 rounded-lg text-sm font-medium transition">🔑 Ingresar</button>
+  </div>
+  <!-- Estado logueado -->
+  <div id="areaUser" class="hidden flex items-center gap-2 flex-wrap">
+    <span id="userBadge" class="text-xs bg-white/20 px-3 py-1.5 rounded-lg text-white font-medium"></span>
+    <button onclick="doLogout()" class="bg-white/10 hover:bg-white/20 text-white border border-white/30 px-3 py-1.5 rounded-lg text-sm transition">Salir</button>
+  </div>
+</div>
 </div></header>
+
+<!-- ─── MODAL AUTH ────────────────────────────────────────────────────────── -->
+<div id="authModal" role="dialog" aria-modal="true">
+<div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+  <!-- Cabecera -->
+  <div class="leaf-bg px-6 pt-6 pb-4">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2"><div class="text-3xl">🌱</div><span class="text-white font-bold text-lg">AgroVisión</span></div>
+      <button onclick="closeAuthModal()" class="text-white/70 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+  </div>
+  <!-- Tabs -->
+  <div class="flex border-b border-gray-200 px-6 pt-4 gap-4">
+    <button id="tabLoginBtn" onclick="switchAuthTab('login')" class="auth-tab-active pb-2 text-sm transition">Iniciar sesión</button>
+    <button id="tabRegisterBtn" onclick="switchAuthTab('register')" class="auth-tab-inactive pb-2 text-sm transition">Registrarse</button>
+  </div>
+  <!-- Formulario Login -->
+  <div id="formLogin" class="px-6 py-5 space-y-3">
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Email</label>
+      <input id="loginEmail" type="email" placeholder="tu@email.com" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Contraseña</label>
+      <input id="loginPassword" type="password" placeholder="••••••••" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" onkeydown="if(event.key==='Enter')doLogin()" />
+    </div>
+    <div id="loginError" class="hidden text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2"></div>
+    <button onclick="doLogin()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg text-sm transition">Ingresar</button>
+    <p class="text-xs text-center text-gray-500">¿No tenés cuenta? <button onclick="switchAuthTab('register')" class="text-emerald-600 underline">Registrate gratis</button></p>
+  </div>
+  <!-- Formulario Registro -->
+  <div id="formRegister" class="hidden px-6 py-5 space-y-3">
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
+      <input id="regNombre" type="text" placeholder="Tu nombre" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Email</label>
+      <input id="regEmail" type="email" placeholder="tu@email.com" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Contraseña</label>
+      <input id="regPassword" type="password" placeholder="Mínimo 6 caracteres" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" onkeydown="if(event.key==='Enter')doRegister()" />
+    </div>
+    <div id="regError" class="hidden text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2"></div>
+    <div id="regSuccess" class="hidden text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2"></div>
+    <button onclick="doRegister()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg text-sm transition">Crear cuenta gratis</button>
+    <p class="text-xs text-center text-gray-500">Plan gratuito: 5 análisis por día</p>
+  </div>
+</div>
+</div>
 
 <div class="glass rounded-t-2xl p-2 flex gap-2 flex-wrap">
 <button id="tab-foto" class="tab-active px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('foto')">📷 Foto</button>
@@ -481,7 +552,7 @@ try{
 const body={image:m[2],mimeType:m[1],vegType:vt,notes:nt,stats};
 if(currentImage2DataURL){const m2=currentImage2DataURL.match(/^data:(image\/[a-z]+);base64,(.+)$/);if(m2){body.image2=m2[2];body.mimeType2=m2[1];}}
 if(window._weatherData)body.weather=window._weatherData;
-const res=await fetch('/api/vision',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+const res=await fetch('/api/vision',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:JSON.stringify(body)});
 if(!res.ok){box.innerHTML=await backendErrorHtml(res);return}
 const{text}=await res.json();
 const printId='print-'+Date.now();
@@ -588,7 +659,24 @@ ta.value=notes.replace(', '+tag,'').replace(tag+', ','').replace(tag,'').trim().
 }
 
 async function backendErrorHtml(res){
-if(res.status===429)return`<div class="bg-orange-50 border-l-4 border-orange-500 rounded p-3 text-sm"><b class="text-orange-900">⏱️ Límite de uso alcanzado — esperá un minuto y reintentá</b></div>`;
+if(res.status===429){
+  let plan='anon';
+  try{const d=await res.clone().json();plan=d.plan||'anon'}catch{}
+  if(plan==='anon'){
+    return`<div class="bg-orange-50 border-l-4 border-orange-500 rounded p-3 text-sm">
+<b class="text-orange-900">⏱️ Límite de análisis gratis alcanzado (3/día sin cuenta)</b>
+<p class="text-orange-800 mt-1">Creá una cuenta gratuita para tener 5 análisis por día.</p>
+<div class="flex gap-2 mt-2 flex-wrap">
+<button onclick="openAuthModal('register')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium">✅ Crear cuenta gratis</button>
+<button onclick="openAuthModal('login')" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium">🔑 Ya tengo cuenta</button>
+</div></div>`;
+  }
+  return`<div class="bg-orange-50 border-l-4 border-orange-500 rounded p-3 text-sm">
+<b class="text-orange-900">⏱️ Alcanzaste el límite del plan gratuito (5 análisis/día)</b>
+<p class="text-orange-800 mt-1">Tu límite diario se reinicia a medianoche.</p>
+<button onclick="alert('Próximamente disponible. Escribinos para más info.')" class="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium">🚀 Mejorar a Pro — $6 USD/mes (próximamente)</button>
+</div>`;
+}
 if(res.status===503)return`<div class="bg-yellow-50 border-l-4 border-yellow-500 rounded p-3 text-sm text-yellow-900">⚠️ Servicio no disponible. Intentá en un momento.</div>`;
 try{const d=await res.json();return`<div class="bg-red-50 border-l-4 border-red-500 rounded p-3 text-sm text-red-900">❌ Error (${res.status}): ${escapeHtml(d.error||'Intentá de nuevo')}</div>`}
 catch{return`<div class="bg-red-50 border-l-4 border-red-500 rounded p-3 text-sm text-red-900">❌ Error ${res.status} — intentá de nuevo.</div>`}
@@ -759,7 +847,7 @@ const vw=document.getElementById('cowView').value;
 const rf=document.getElementById('cowRef').value;
 const nt=document.getElementById('cowNotes').value;
 try{
-const res=await fetch('/api/cow',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image:m[2],mimeType:m[1],cowType:tp,breed:br,view:vw,ref:rf,notes:nt})});
+const res=await fetch('/api/cow',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:JSON.stringify({image:m[2],mimeType:m[1],cowType:tp,breed:br,view:vw,ref:rf,notes:nt})});
 if(!res.ok){out.innerHTML=await backendErrorHtml(res);return}
 const{data}=await res.json();
 window._lastCowText=`Ganado: ${data.raza_detectada} - Peso estimado ${data.peso_promedio}kg (${data.peso_min}-${data.peso_max}kg). Condición: ${data.condicion_corporal}. ${data.observaciones}`;
@@ -1260,7 +1348,7 @@ if(isS){if([12,1,2].includes(month))season='verano';else if([3,4,5].includes(mon
 else{if([6,7,8].includes(month))season='verano';else if([9,10,11].includes(month))season='otoño';else if([12,1,2].includes(month))season='invierno';else season='primavera'}
 const country=isS&&first.centerLat>-35&&first.centerLat<-30&&first.centerLon>-58.5&&first.centerLon<-53?'Uruguay':isS&&first.centerLat<-21?'Argentina/Cono Sur':isS?'Sudamérica':'región templada';
 try{
-const res=await fetch('/api/field',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
+const res=await fetch('/api/field',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:JSON.stringify({
 quads:quads.map(q=>({id:q.id,row:q.row,col:q.col,centerLat:q.centerLat,centerLon:q.centerLon,ndvi:q.ndvi})),
 crop,lat:first.centerLat,lon:first.centerLon,season,date,country
 })});
@@ -1407,7 +1495,7 @@ box.insertAdjacentHTML('beforeend',`<div id="${loadId}" class="flex gap-2 items-
 box.scrollTop=box.scrollHeight;
 chatHistory.push({role:'user',content:msg});
 try{
-const res=await fetch('/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({messages:chatHistory})});
+const res=await fetch('/api/chat',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:JSON.stringify({messages:chatHistory})});
 document.getElementById(loadId)?.remove();
 if(!res.ok){const errHtml=await backendErrorHtml(res);box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div style="max-width:85%">${errHtml}</div></div>`);box.scrollTop=box.scrollHeight;return;}
 const{text}=await res.json();
@@ -1454,7 +1542,7 @@ const m=weedImageDataURL.match(/^data:(image\/[a-z]+);base64,(.+)$/);
 if(!m){out.innerHTML='<p class="text-red-600 text-sm">Formato no soportado.</p>';return}
 const crop=document.getElementById('weedCrop').value;
 try{
-const res=await fetch('/api/weed',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image:m[2],mimeType:m[1],crop})});
+const res=await fetch('/api/weed',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:JSON.stringify({image:m[2],mimeType:m[1],crop})});
 if(!res.ok){out.innerHTML=await backendErrorHtml(res);return}
 const{text}=await res.json();
 window._lastWeedText=text;
@@ -1468,6 +1556,110 @@ out.innerHTML=`<div class="bg-white border-2 border-emerald-300 rounded-xl p-4">
 
 // Llamar clima al cargar la página (tab foto activo por defecto)
 window.addEventListener('DOMContentLoaded',loadWeather);
+
+// ============ AUTENTICACIÓN ============
+
+function openAuthModal(tab='login'){
+  document.getElementById('authModal').classList.add('open');
+  switchAuthTab(tab);
+  // Limpiar errores
+  ['loginError','regError','regSuccess'].forEach(id=>{const el=document.getElementById(id);if(el){el.classList.add('hidden');el.textContent=''}});
+}
+
+function closeAuthModal(){
+  document.getElementById('authModal').classList.remove('open');
+}
+
+// Cerrar con click en backdrop
+document.getElementById('authModal').addEventListener('click',function(e){
+  if(e.target===this)closeAuthModal();
+});
+
+function switchAuthTab(tab){
+  const isLogin=tab==='login';
+  document.getElementById('formLogin').classList.toggle('hidden',!isLogin);
+  document.getElementById('formRegister').classList.toggle('hidden',isLogin);
+  document.getElementById('tabLoginBtn').className=isLogin?'auth-tab-active pb-2 text-sm transition':'auth-tab-inactive pb-2 text-sm transition';
+  document.getElementById('tabRegisterBtn').className=isLogin?'auth-tab-inactive pb-2 text-sm transition':'auth-tab-active pb-2 text-sm transition';
+}
+
+async function doLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const password=document.getElementById('loginPassword').value;
+  const errEl=document.getElementById('loginError');
+  errEl.classList.add('hidden');
+  if(!email||!password){errEl.textContent='Completá email y contraseña.';errEl.classList.remove('hidden');return}
+  try{
+    const r=await fetch('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password})});
+    const d=await r.json();
+    if(!r.ok){errEl.textContent=d.error||'Error al ingresar. Verificá tus datos.';errEl.classList.remove('hidden');return}
+    localStorage.setItem('agroToken',d.token);
+    localStorage.setItem('agroUser',JSON.stringify(d.user));
+    updateUserUI(d.user);
+    closeAuthModal();
+  }catch(e){errEl.textContent='Error de red. Intentá de nuevo.';errEl.classList.remove('hidden')}
+}
+
+async function doRegister(){
+  const nombre=document.getElementById('regNombre').value.trim();
+  const email=document.getElementById('regEmail').value.trim();
+  const password=document.getElementById('regPassword').value;
+  const errEl=document.getElementById('regError');
+  const okEl=document.getElementById('regSuccess');
+  errEl.classList.add('hidden');okEl.classList.add('hidden');
+  if(!nombre||!email||!password){errEl.textContent='Completá todos los campos.';errEl.classList.remove('hidden');return}
+  if(password.length<6){errEl.textContent='La contraseña debe tener al menos 6 caracteres.';errEl.classList.remove('hidden');return}
+  try{
+    const r=await fetch('/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({nombre,email,password})});
+    const d=await r.json();
+    if(!r.ok){errEl.textContent=d.error||'Error al registrarse.';errEl.classList.remove('hidden');return}
+    okEl.textContent='¡Cuenta creada! Ahora ingresá con tu email y contraseña.';okEl.classList.remove('hidden');
+    setTimeout(()=>switchAuthTab('login'),2000);
+  }catch(e){errEl.textContent='Error de red. Intentá de nuevo.';errEl.classList.remove('hidden')}
+}
+
+async function doLogout(){
+  await fetch('/api/auth/logout',{method:'POST'}).catch(()=>{});
+  localStorage.removeItem('agroToken');
+  localStorage.removeItem('agroUser');
+  updateUserUI(null);
+}
+
+function updateUserUI(user){
+  const guest=document.getElementById('areaGuest');
+  const userArea=document.getElementById('areaUser');
+  const badge=document.getElementById('userBadge');
+  if(user){
+    guest.classList.add('hidden');
+    userArea.classList.remove('hidden');
+    const planLabel=user.plan==='pro'?'✅ Pro':user.plan==='familia'?'✅ Familia':'⚡ 5/día gratis';
+    badge.textContent=`👤 ${user.nombre} · ${planLabel}`;
+  }else{
+    guest.classList.remove('hidden');
+    userArea.classList.add('hidden');
+  }
+}
+
+// Restaurar sesión al cargar
+(function restoreSession(){
+  const token=localStorage.getItem('agroToken');
+  const userStr=localStorage.getItem('agroUser');
+  if(token&&userStr){
+    try{
+      const user=JSON.parse(userStr);
+      // Verificar token en background
+      fetch('/api/auth/me',{headers:{'Authorization':'Bearer '+token}})
+        .then(r=>{
+          if(!r.ok){localStorage.removeItem('agroToken');localStorage.removeItem('agroUser');updateUserUI(null);return}
+          return r.json();
+        })
+        .then(d=>{if(d&&d.user)updateUserUI({nombre:d.user.nombre,plan:d.user.plan,email:d.user.email})})
+        .catch(()=>{});
+      // Mostrar inmediatamente con datos del localStorage (UX instantáneo)
+      updateUserUI(user);
+    }catch(e){/* ignorar */}
+  }
+})();
 </script>
 </body>
 </html>

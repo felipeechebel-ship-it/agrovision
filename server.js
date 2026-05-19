@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 app.use(express.json({ limit: '15mb' }));
@@ -11,9 +12,97 @@ const GEMINI_KEY   = process.env.GEMINI_KEY;
 const PLANET_KEY   = process.env.PLANET_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY
+);
+
 // 30 requests por minuto por IP
 const limiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false });
 app.use('/api', limiter);
+
+// ─── Contador en memoria para anónimos (IP) ─────────────────────────────────
+const anonCounters = {}; // { ip: { count, date } }
+const ANON_DAILY_LIMIT = 3;
+const FREE_DAILY_LIMIT = 5;
+
+function getTodayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// ─── MIDDLEWARE: verificar token de sesión ───────────────────────────────────
+async function checkAuth(req, res, next) {
+  const authHeader = req.headers['authorization'] || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  req.user = null;
+
+  if (!token) return next();
+
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) return next();
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (profile) req.user = profile;
+  } catch (e) {
+    // token inválido → usuario anónimo
+  }
+  next();
+}
+
+// ─── MIDDLEWARE: límites por plan ────────────────────────────────────────────
+async function checkLimit(req, res, next) {
+  const today = getTodayStr();
+
+  // Usuario anónimo
+  if (!req.user) {
+    const ip = req.ip || req.connection.remoteAddress || 'unknown';
+    if (!anonCounters[ip] || anonCounters[ip].date !== today) {
+      anonCounters[ip] = { count: 0, date: today };
+    }
+    if (anonCounters[ip].count >= ANON_DAILY_LIMIT) {
+      return res.status(429).json({ error: 'LIMIT_REACHED', plan: 'anon' });
+    }
+    anonCounters[ip].count++;
+    return next();
+  }
+
+  // Plan pro o familia → sin límite
+  if (req.user.plan === 'pro' || req.user.plan === 'familia') return next();
+
+  // Plan free → límite diario con reset cada 24h
+  const fechaReset = req.user.fecha_reset
+    ? req.user.fecha_reset.split('T')[0]
+    : null;
+
+  let analisisHoy = req.user.analisis_hoy || 0;
+
+  if (fechaReset !== today) {
+    // Resetear contador
+    analisisHoy = 0;
+    await supabase
+      .from('profiles')
+      .update({ analisis_hoy: 0, fecha_reset: new Date().toISOString() })
+      .eq('id', req.user.id);
+  }
+
+  if (analisisHoy >= FREE_DAILY_LIMIT) {
+    return res.status(429).json({ error: 'LIMIT_REACHED', plan: 'free' });
+  }
+
+  // Incrementar contador
+  await supabase
+    .from('profiles')
+    .update({ analisis_hoy: analisisHoy + 1 })
+    .eq('id', req.user.id);
+
+  next();
+}
 
 // ─── helper: llama a Gemini ──────────────────────────────────────────────────
 async function gemini(parts, maxTokens = 4000, jsonMode = false) {
@@ -34,8 +123,92 @@ async function gemini(parts, maxTokens = 4000, jsonMode = false) {
   return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
+// ─── AUTH: REGISTRO ──────────────────────────────────────────────────────────
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password, nombre } = req.body;
+    if (!email || !password || !nombre) {
+      return res.status(400).json({ error: 'email, password y nombre son requeridos' });
+    }
+
+    const { data, error } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true
+    });
+
+    if (error) return res.status(400).json({ error: error.message });
+
+    const user = data.user;
+
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert({
+        id: user.id,
+        email,
+        nombre,
+        plan: 'free',
+        analisis_hoy: 0,
+        fecha_reset: new Date().toISOString()
+      });
+
+    if (profileError) {
+      // Si falla el perfil, igualmente el user quedó creado — no es crítico
+      console.error('Error creando perfil:', profileError.message);
+    }
+
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── AUTH: LOGIN ─────────────────────────────────────────────────────────────
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'email y password son requeridos' });
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return res.status(401).json({ error: error.message });
+
+    const session = data.session;
+    const userId  = data.user.id;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email, nombre, plan')
+      .eq('id', userId)
+      .single();
+
+    res.json({
+      token: session.access_token,
+      user: {
+        email: profile?.email || email,
+        nombre: profile?.nombre || '',
+        plan: profile?.plan || 'free'
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── AUTH: ME ────────────────────────────────────────────────────────────────
+app.get('/api/auth/me', checkAuth, async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'No autenticado' });
+  res.json({ user: req.user });
+});
+
+// ─── AUTH: LOGOUT ────────────────────────────────────────────────────────────
+app.post('/api/auth/logout', (req, res) => {
+  res.json({ ok: true });
+});
+
 // ─── ANÁLISIS DE FOTO ────────────────────────────────────────────────────────
-app.post('/api/vision', async (req, res) => {
+app.post('/api/vision', checkAuth, checkLimit, async (req, res) => {
   try {
     const { image, mimeType, image2, mimeType2, vegType, notes, stats, weather } = req.body;
     if (!image) return res.status(400).json({ error: 'Imagen requerida' });
@@ -81,7 +254,7 @@ Analizá la imagen con tu criterio profesional y dá un diagnóstico preciso.`;
 });
 
 // ─── ANÁLISIS DE GANADO ──────────────────────────────────────────────────────
-app.post('/api/cow', async (req, res) => {
+app.post('/api/cow', checkAuth, checkLimit, async (req, res) => {
   try {
     const { image, mimeType, cowType, breed, view, ref, notes } = req.body;
     if (!image) return res.status(400).json({ error: 'Imagen requerida' });
@@ -102,7 +275,7 @@ Respondé en JSON puro (sin markdown):
 });
 
 // ─── MALEZAS ─────────────────────────────────────────────────────────────────
-app.post('/api/weed', async (req, res) => {
+app.post('/api/weed', checkAuth, checkLimit, async (req, res) => {
   try {
     const { image, mimeType, crop } = req.body;
     if (!image) return res.status(400).json({ error: 'Imagen requerida' });
@@ -127,7 +300,7 @@ Respondé con:
 });
 
 // ─── ANÁLISIS DE CAMPO POR CUADRANTES ───────────────────────────────────────
-app.post('/api/field', async (req, res) => {
+app.post('/api/field', checkAuth, checkLimit, async (req, res) => {
   try {
     const { quads, crop, lat, lon, season, date, country } = req.body;
     if (!quads?.length) return res.status(400).json({ error: 'Sin cuadrantes' });
