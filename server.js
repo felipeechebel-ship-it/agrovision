@@ -1,4 +1,13 @@
 require('dotenv').config();
+
+// Reemplazar fetch nativo de Node 20 (undici) con node-fetch para evitar
+// el error "Cannot convert argument to a ByteString" con caracteres no-ASCII.
+const nodeFetch = require('node-fetch');
+global.fetch   = nodeFetch;
+global.Headers = nodeFetch.Headers;
+global.Request = nodeFetch.Request;
+global.Response = nodeFetch.Response;
+
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
