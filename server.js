@@ -37,7 +37,7 @@ async function gemini(parts, maxTokens = 4000, jsonMode = false) {
 // ─── ANÁLISIS DE FOTO ────────────────────────────────────────────────────────
 app.post('/api/vision', async (req, res) => {
   try {
-    const { image, mimeType, vegType, notes, stats } = req.body;
+    const { image, mimeType, image2, mimeType2, vegType, notes, stats, weather } = req.body;
     if (!image) return res.status(400).json({ error: 'Imagen requerida' });
 
     const sys = `Sos un ingeniero agrónomo con 20 años de experiencia en el campo uruguayo. Conocés perfectamente las pasturas de Uruguay: campo natural (con pasto seco, flechilla, gramilla), festuca, raigrás, lotus, trébol blanco, gramíneas de verano. Sabés que una pastura sana en Uruguay NATURALMENTE tiene mezcla de verde, marrón y amarillo — eso NO es señal de problema. El marrón puede ser paja seca natural, los tallos secos de gramíneas, el suelo entre matas. Solo es problema cuando hay manchas, podredumbre, insectos, hongos, o más del 60% de material muerto sin rebrote verde.
@@ -60,14 +60,20 @@ Respondés en español rioplatense. Estructurá tu respuesta en 5 secciones nume
 
 Sé concreto, profesional y accionable. Si la pastura está bien, decilo claramente.`;
     const greenPct = ((stats?.greenDark || 0) + (stats?.greenLight || 0)).toFixed(1);
-    const usr = `Foto de vegetación del campo uruguayo. Tipo: ${vegType}. Notas del productor: ${notes || 'ninguna'}.
+    let weatherCtx = '';
+    if (weather) weatherCtx = `\nClima actual en la zona: ${weather.temp}°C, precipitación reciente ${weather.precip}mm, viento ${weather.wind}km/h.`;
+    const img2note = image2 ? '\nSe adjuntan DOS fotos: la primera es vista general del potrero (al horizonte), la segunda es de cerca al suelo. Analizalas en conjunto.' : '';
+    const usr = `Foto de vegetación del campo uruguayo. Tipo: ${vegType}. Notas del productor: ${notes || 'ninguna'}.${weatherCtx}${img2note}
 Referencia de color (tomala como orientativa, no como dato exacto): verde ~${greenPct}%, amarillo ~${(stats?.yellow || 0).toFixed(1)}%, marrón ~${(stats?.brown || 0).toFixed(1)}%.
 Analizá la imagen con tu criterio profesional y dá un diagnóstico preciso.`;
 
-    const text = await gemini([
+    const parts = [
       { text: sys + '\n\n' + usr },
       { inline_data: { mime_type: mimeType, data: image } }
-    ]);
+    ];
+    if (image2 && mimeType2) parts.push({ inline_data: { mime_type: mimeType2, data: image2 } });
+
+    const text = await gemini(parts);
     res.json({ text });
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message });
@@ -95,6 +101,31 @@ Respondé en JSON puro (sin markdown):
   }
 });
 
+// ─── MALEZAS ─────────────────────────────────────────────────────────────────
+app.post('/api/weed', async (req, res) => {
+  try {
+    const { image, mimeType, crop } = req.body;
+    if (!image) return res.status(400).json({ error: 'Imagen requerida' });
+    const prompt = `Sos un experto en malezas del Uruguay y el Río de la Plata. Identificá la maleza en esta foto.
+Respondé con:
+1) Nombre común y científico
+2) Familia botánica
+3) Ciclo (anual/perenne)
+4) Por qué es problemática para ${crop || 'el cultivo'}
+5) Control químico (herbicida + dosis específica para Uruguay)
+6) Control cultural
+7) Momento óptimo de control
+8) Resistencias conocidas en Uruguay`;
+    const text = await gemini([
+      { text: prompt },
+      { inline_data: { mime_type: mimeType, data: image } }
+    ]);
+    res.json({ text });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
 // ─── ANÁLISIS DE CAMPO POR CUADRANTES ───────────────────────────────────────
 app.post('/api/field', async (req, res) => {
   try {
@@ -110,7 +141,7 @@ ${quads.map(q => `${q.id}: NDVI ${q.ndvi?.value != null ? q.ndvi.value.toFixed(2
 ${!hasNdvi ? '\n⚠️ Sin NDVI — usá conocimiento regional, época y cultivo para estimar.' : ''}
 
 Respondé en JSON puro:
-{"resumen_general":"2-3 líneas","cuadrantes":[{"id":"...","salud_score":75,"estado":"...","accion":"producto + dosis concreta","urgencia":"alta|media|baja"}]}`;
+{"resumen_general":"2-3 líneas","carga_animal_estimada":"X animales/ha según NDVI y época","cuadrantes":[{"id":"...","salud_score":75,"estado":"...","accion":"producto + dosis concreta","urgencia":"alta|media|baja"}]}`;
 
     const text = await gemini([{ text: prompt }], 6000, true);
     res.json({ data: JSON.parse(text.replace(/```json\n?|```/g, '').trim()) });
