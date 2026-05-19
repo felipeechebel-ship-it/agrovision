@@ -2,29 +2,26 @@ require('dotenv').config();
 
 const nodeFetch = require('node-fetch');
 
-// Fetch sanitizador: limpia headers para evitar ByteString errors con chars > 255
-function makeSafeFetch(baseFetch) {
-  return function safeFetch(url, options = {}) {
-    if (options && options.headers) {
-      const clean = {};
-      const src = options.headers instanceof baseFetch.Headers
-        ? Object.fromEntries(options.headers.entries())
-        : options.headers;
-      for (const [k, v] of Object.entries(src)) {
-        clean[k] = String(v).replace(/[^\x00-\xFF]/g, '');
-      }
-      options = { ...options, headers: clean };
-    }
-    return baseFetch(url, options);
-  };
-}
-const safeFetch = makeSafeFetch(nodeFetch);
-
-// Reemplazar fetch global de Node 20 (undici) con nuestra versión segura
-global.fetch    = safeFetch;
+// Usar node-fetch como implementación global de fetch
+global.fetch    = nodeFetch;
 global.Headers  = nodeFetch.Headers;
 global.Request  = nodeFetch.Request;
 global.Response = nodeFetch.Response;
+
+// PARCHE CLAVE: el SDK de Supabase construye un objeto Headers con algún
+// valor que tiene emoji/chars > U+00FF (p.ej. en x-client-info), lo cual
+// lanza "Cannot convert argument to a ByteString".
+// Parcheamos set() y append() para limpiar esos chars ANTES de la validación.
+const _hSet = global.Headers.prototype.set;
+const _hApp = global.Headers.prototype.append;
+global.Headers.prototype.set = function(name, value) {
+  return _hSet.call(this, name,
+    typeof value === 'string' ? value.replace(/[^\x00-\xFF]/g, '') : value);
+};
+global.Headers.prototype.append = function(name, value) {
+  return _hApp.call(this, name,
+    typeof value === 'string' ? value.replace(/[^\x00-\xFF]/g, '') : value);
+};
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -44,7 +41,7 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SECRET_KEY,
   {
-    global: { fetch: safeFetch },
+    global: { fetch: nodeFetch },
     realtime: { transport: ws }
   }
 );
