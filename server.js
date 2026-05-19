@@ -1,27 +1,33 @@
 require('dotenv').config();
-
 const nodeFetch = require('node-fetch');
 
-// Usar node-fetch como implementación global de fetch
+// Parcha set() y append() de una clase Headers para que no lance
+// "Cannot convert to ByteString" cuando el valor tiene emoji (> U+00FF).
+function patchHeaders(H) {
+  if (!H || !H.prototype) return;
+  const _s = H.prototype.set;
+  const _a = H.prototype.append;
+  H.prototype.set = function(n, v) {
+    return _s.call(this, n, typeof v === 'string' ? v.replace(/[^\x00-\xFF]/g, '') : v);
+  };
+  H.prototype.append = function(n, v) {
+    return _a.call(this, n, typeof v === 'string' ? v.replace(/[^\x00-\xFF]/g, '') : v);
+  };
+}
+
+// 1) Parchear node-fetch Headers (para nuestras llamadas)
+patchHeaders(nodeFetch.Headers);
+
+// 2) Parchear undici Headers DIRECTAMENTE — @supabase/auth-js usa undici
+//    internamente sin pasar por global.fetch, así que el parche global no alcanza.
+try { patchHeaders(require('node:undici').Headers); } catch(_) {}
+try { patchHeaders(require('undici').Headers); }     catch(_) {}
+
+// Setear global fetch a node-fetch para nuestras propias llamadas
 global.fetch    = nodeFetch;
 global.Headers  = nodeFetch.Headers;
 global.Request  = nodeFetch.Request;
 global.Response = nodeFetch.Response;
-
-// PARCHE CLAVE: el SDK de Supabase construye un objeto Headers con algún
-// valor que tiene emoji/chars > U+00FF (p.ej. en x-client-info), lo cual
-// lanza "Cannot convert argument to a ByteString".
-// Parcheamos set() y append() para limpiar esos chars ANTES de la validación.
-const _hSet = global.Headers.prototype.set;
-const _hApp = global.Headers.prototype.append;
-global.Headers.prototype.set = function(name, value) {
-  return _hSet.call(this, name,
-    typeof value === 'string' ? value.replace(/[^\x00-\xFF]/g, '') : value);
-};
-global.Headers.prototype.append = function(name, value) {
-  return _hApp.call(this, name,
-    typeof value === 'string' ? value.replace(/[^\x00-\xFF]/g, '') : value);
-};
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
