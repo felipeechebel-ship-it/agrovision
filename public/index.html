@@ -381,18 +381,13 @@ return{findings,recommendations,healthScore:hs};
 }
 
 function renderResult(c,s,d){
-const co=d.healthScore>70?'#16a34a':d.healthScore>40?'#eab308':'#dc2626';
-const lb=d.healthScore>70?'Saludable':d.healthScore>40?'Estrés moderado':'Estrés severo';
 c.innerHTML=`<div class="bg-white rounded-xl border border-gray-200 p-4">
-<div class="flex items-center justify-between mb-3"><span class="font-semibold text-gray-800">Salud estimada</span><span class="text-lg font-bold" style="color:${co}">${d.healthScore}/100 · ${lb}</span></div>
-<div class="health-bar"><div class="health-fill" style="width:${d.healthScore}%;background:${co}"></div></div>
-<div class="grid grid-cols-3 gap-2 mt-4 text-xs">
+<div class="text-xs text-gray-500 mb-3 bg-gray-50 p-2 rounded">📊 <b>Análisis de color de la foto</b> (referencia orientativa)
+<div class="grid grid-cols-3 gap-2 mt-2">
 <div class="bg-emerald-50 p-2 rounded text-center"><div class="font-bold text-emerald-700">${(s.greenDark+s.greenLight).toFixed(0)}%</div><div>Verde</div></div>
 <div class="bg-yellow-50 p-2 rounded text-center"><div class="font-bold text-yellow-700">${s.yellow.toFixed(0)}%</div><div>Amarillo</div></div>
 <div class="bg-orange-50 p-2 rounded text-center"><div class="font-bold text-orange-800">${s.brown.toFixed(0)}%</div><div>Marrón</div></div>
-</div>
-<div class="mt-4"><h3 class="font-semibold text-gray-800 mb-2">📋 Observaciones</h3><ul class="space-y-1 text-sm text-gray-700">${d.findings.map(f=>`<li>${f.icon} ${f.txt}</li>`).join('')}${d.findings.length===0?'<li class="text-gray-500">Sin hallazgos críticos.</li>':''}</ul></div>
-<div class="mt-4"><h3 class="font-semibold text-gray-800 mb-2">💡 Recomendaciones</h3><div class="space-y-2">${d.recommendations.map(r=>`<details class="bg-emerald-50 rounded-lg p-3 group"><summary class="font-medium text-emerald-900 flex items-center justify-between"><span>${r.cat}</span><span class="text-emerald-600 group-open:rotate-180 transition">▾</span></summary><p class="text-sm text-gray-700 mt-2">${r.detail}</p></details>`).join('')}</div></div>
+</div></div>
 </div>`;
 }
 
