@@ -431,6 +431,9 @@ body *{visibility:hidden}
 </div>
 
 <script>
+// Encodes JSON body as UTF-8 bytes to avoid "Cannot convert to ByteString" in all browsers
+function jbody(obj){return new TextEncoder().encode(JSON.stringify(obj));}
+
 function switchTab(n){['foto','sat','chat','weed','cow'].forEach(t=>{document.getElementById('panel-'+t).classList.add('hidden');const b=document.getElementById('tab-'+t);b.classList.remove('tab-active');b.classList.add('tab-inactive')});document.getElementById('panel-'+n).classList.remove('hidden');const a=document.getElementById('tab-'+n);a.classList.remove('tab-inactive');a.classList.add('tab-active');if(n==='sat'){if(!window.mapInited)initMap();else setTimeout(()=>{if(map){map.invalidateSize();}},100);}if(n==='foto')loadWeather();}
 
 const drop=document.getElementById('dropZone'),fileInput=document.getElementById('fileInput'),previewBox=document.getElementById('previewBox'),btnAnalyze=document.getElementById('btnAnalyze');
@@ -552,7 +555,7 @@ try{
 const body={image:m[2],mimeType:m[1],vegType:vt,notes:nt,stats};
 if(currentImage2DataURL){const m2=currentImage2DataURL.match(/^data:(image\/[a-z]+);base64,(.+)$/);if(m2){body.image2=m2[2];body.mimeType2=m2[1];}}
 if(window._weatherData)body.weather=window._weatherData;
-const res=await fetch('/api/vision',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:JSON.stringify(body)});
+const res=await fetch('/api/vision',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:jbody(body)});
 if(!res.ok){box.innerHTML=await backendErrorHtml(res);return}
 const{text}=await res.json();
 const printId='print-'+Date.now();
@@ -847,7 +850,7 @@ const vw=document.getElementById('cowView').value;
 const rf=document.getElementById('cowRef').value;
 const nt=document.getElementById('cowNotes').value;
 try{
-const res=await fetch('/api/cow',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:JSON.stringify({image:m[2],mimeType:m[1],cowType:tp,breed:br,view:vw,ref:rf,notes:nt})});
+const res=await fetch('/api/cow',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:jbody({image:m[2],mimeType:m[1],cowType:tp,breed:br,view:vw,ref:rf,notes:nt})});
 if(!res.ok){out.innerHTML=await backendErrorHtml(res);return}
 const{data}=await res.json();
 window._lastCowText=`Ganado: ${data.raza_detectada} - Peso estimado ${data.peso_promedio}kg (${data.peso_min}-${data.peso_max}kg). Condición: ${data.condicion_corporal}. ${data.observaciones}`;
@@ -1348,7 +1351,7 @@ if(isS){if([12,1,2].includes(month))season='verano';else if([3,4,5].includes(mon
 else{if([6,7,8].includes(month))season='verano';else if([9,10,11].includes(month))season='otoño';else if([12,1,2].includes(month))season='invierno';else season='primavera'}
 const country=isS&&first.centerLat>-35&&first.centerLat<-30&&first.centerLon>-58.5&&first.centerLon<-53?'Uruguay':isS&&first.centerLat<-21?'Argentina/Cono Sur':isS?'Sudamérica':'región templada';
 try{
-const res=await fetch('/api/field',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:JSON.stringify({
+const res=await fetch('/api/field',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:jbody({
 quads:quads.map(q=>({id:q.id,row:q.row,col:q.col,centerLat:q.centerLat,centerLon:q.centerLon,ndvi:q.ndvi})),
 crop,lat:first.centerLat,lon:first.centerLon,season,date,country
 })});
@@ -1495,7 +1498,7 @@ box.insertAdjacentHTML('beforeend',`<div id="${loadId}" class="flex gap-2 items-
 box.scrollTop=box.scrollHeight;
 chatHistory.push({role:'user',content:msg});
 try{
-const res=await fetch('/api/chat',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:JSON.stringify({messages:chatHistory})});
+const res=await fetch('/api/chat',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:jbody({messages:chatHistory})});
 document.getElementById(loadId)?.remove();
 if(!res.ok){const errHtml=await backendErrorHtml(res);box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div style="max-width:85%">${errHtml}</div></div>`);box.scrollTop=box.scrollHeight;return;}
 const{text}=await res.json();
@@ -1542,7 +1545,7 @@ const m=weedImageDataURL.match(/^data:(image\/[a-z]+);base64,(.+)$/);
 if(!m){out.innerHTML='<p class="text-red-600 text-sm">Formato no soportado.</p>';return}
 const crop=document.getElementById('weedCrop').value;
 try{
-const res=await fetch('/api/weed',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:JSON.stringify({image:m[2],mimeType:m[1],crop})});
+const res=await fetch('/api/weed',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${localStorage.getItem('agroToken')||''}`},body:jbody({image:m[2],mimeType:m[1],crop})});
 if(!res.ok){out.innerHTML=await backendErrorHtml(res);return}
 const{text}=await res.json();
 window._lastWeedText=text;
@@ -1590,7 +1593,7 @@ async function doLogin(){
   errEl.classList.add('hidden');
   if(!email||!password){errEl.textContent='Completá email y contraseña.';errEl.classList.remove('hidden');return}
   try{
-    const r=await fetch('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password})});
+    const r=await fetch('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:jbody({email,password})});
     const d=await r.json();
     if(!r.ok){errEl.textContent=d.error||'Error al ingresar. Verificá tus datos.';errEl.classList.remove('hidden');return}
     localStorage.setItem('agroToken',d.token);
@@ -1610,7 +1613,7 @@ async function doRegister(){
   if(!nombre||!email||!password){errEl.textContent='Completá todos los campos.';errEl.classList.remove('hidden');return}
   if(password.length<6){errEl.textContent='La contraseña debe tener al menos 6 caracteres.';errEl.classList.remove('hidden');return}
   try{
-    const r=await fetch('/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({nombre,email,password})});
+    const r=await fetch('/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:jbody({nombre,email,password})});
     const d=await r.json();
     if(!r.ok){errEl.textContent=d.error||'Error al registrarse.';errEl.classList.remove('hidden');return}
     okEl.textContent='¡Cuenta creada! Ahora ingresá con tu email y contraseña.';okEl.classList.remove('hidden');
