@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AgroVisión — Ingeniero agrónomo IA</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.leaf-bg{background:linear-gradient(135deg,#064e3b 0%,#047857 40%,#16a34a 100%)}
+.glass{backdrop-filter:blur(10px);background:rgba(255,255,255,.92)}
+.drop-zone{border:2px dashed #16a34a;transition:all .2s}
+.drop-zone.dragover{background:#dcfce7;border-color:#065f46}
+#map{height:480px;border-radius:12px}
+.tab-active{background:#16a34a;color:#fff}
+.tab-inactive{background:#f3f4f6;color:#374151}
+.pulse-dot{animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.health-bar{height:8px;border-radius:4px;overflow:hidden;background:#e5e7eb}
+.health-fill{height:100%;transition:width 1s}
+details>summary{cursor:pointer;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+.swatch{width:20px;height:20px;border-radius:6px;border:1px solid #d1d5db}
+</style>
+</head>
+<body class="leaf-bg min-h-screen">
+<div class="max-w-6xl mx-auto p-4 md:p-8">
+<header class="text-white mb-6">
+<div class="flex items-center gap-3">
+<div class="text-5xl">🌱</div>
+<div><h1 class="text-3xl md:text-4xl font-bold">AgroVisión</h1>
+<p class="text-emerald-100 text-sm">Tu ingeniero agrónomo asistido por IA — pasto, cultivos y forrajeras</p></div>
+</div></header>
+
+<div class="glass rounded-t-2xl p-2 flex gap-2 flex-wrap">
+<button id="tab-foto" class="tab-active px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('foto')">📷 Foto</button>
+<button id="tab-sat" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('sat')">🛰️ Satelital</button>
+<button id="tab-chat" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('chat')">💬 Consulta IA</button>
+<button id="tab-cow" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('cow')">🐄 Ganado</button>
+</div>
+
+<main class="glass rounded-b-2xl p-4 md:p-6 shadow-2xl">
+
+<section id="panel-foto">
+<div class="grid md:grid-cols-2 gap-6">
+<div>
+<h2 class="text-lg font-semibold text-gray-800 mb-2">1. Subí una foto</h2>
+<div id="dropZone" class="drop-zone rounded-xl p-6 text-center cursor-pointer bg-emerald-50/50">
+<div class="text-4xl mb-2">🌾</div>
+<p class="text-emerald-800 font-medium">Arrastrá una foto del potrero o cultivo</p>
+<p class="text-xs text-gray-600 mt-1">o tocá acá para elegir desde la galería</p>
+<input type="file" id="fileInput" accept="image/*" class="hidden" />
+</div>
+<details class="mt-2 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+<summary class="px-3 py-2 font-medium text-amber-900 cursor-pointer">📸 ¿Cómo sacar una buena foto para mejor resultado?</summary>
+<div class="px-3 pb-3 text-xs text-amber-900 space-y-1 mt-1">
+<p>✅ <b>Sacá la foto de día</b>, con buena luz natural. Evitá el mediodía con sol muy fuerte (genera sombras duras).</p>
+<p>✅ <b>Enfocá bien el pasto o cultivo</b> — que ocupe la mayor parte de la foto, no el cielo ni el horizonte.</p>
+<p>✅ <b>Distancia ideal: 50 cm a 1.5 metros</b> del suelo. Desde arriba en ángulo leve funciona bien.</p>
+<p>✅ <b>Incluí zona representativa</b>: si hay manchas o problemas, que se vean bien en el centro de la foto.</p>
+<p>⚠️ <b>Evitá fotos borrosas</b>, muy oscuras, tomadas desde el auto o con lluvia fuerte.</p>
+<p>⚠️ <b>No pongas el flash</b> — sobreexpone y quema los colores verdes.</p>
+<p>💡 <b>Tip:</b> sacá 2-3 fotos distintas de la misma zona y subí la más nítida para mejor diagnóstico.</p>
+</div>
+</details>
+<div class="mt-4 space-y-2">
+<label class="block text-sm font-medium text-gray-700">Tipo de vegetación</label>
+<select id="vegType" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+<option value="auto">Detectar automáticamente</option>
+<option value="pasto">Pasto / Césped</option>
+<option value="cancha">Cancha deportiva</option>
+<option value="soja">Soja</option><option value="maiz">Maíz</option>
+<option value="trigo">Trigo</option><option value="alfalfa">Alfalfa / Pastura</option>
+<option value="hortaliza">Hortaliza / Huerta</option><option value="frutal">Árbol frutal</option>
+<option value="otro">Otra</option>
+</select>
+<label class="block text-sm font-medium text-gray-700 mt-2">Notas (opcional)</label>
+<textarea id="userNotes" rows="2" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Ej: hace 3 semanas que no llueve..."></textarea>
+<button id="btnAnalyze" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg mt-2 disabled:bg-gray-400" disabled>🔍 Analizar foto</button>
+</div>
+</div>
+<div>
+<h2 class="text-lg font-semibold text-gray-800 mb-2">2. Resultado</h2>
+<div id="previewBox" class="bg-gray-100 rounded-xl h-48 flex items-center justify-center text-gray-400 text-sm">Sin imagen</div>
+<div id="analysisOutput" class="mt-4"></div>
+</div>
+</div>
+</section>
+
+<section id="panel-sat" class="hidden">
+<h2 class="text-lg font-semibold text-gray-800 mb-2">Vista satelital con NDVI</h2>
+<p class="text-sm text-gray-600 mb-3">NDVI MODIS muestra qué tan verde está la vegetación. Verde fuerte = vigoroso. Marrón = estrés o suelo desnudo. <b>Si ves zonas en blanco/sin datos, retrocedé la fecha</b> (los datos satelitales tardan 1-3 semanas en procesarse).</p>
+<div class="flex flex-wrap gap-2 mb-3">
+<input id="searchInput" type="text" placeholder="Lugar en Uruguay, departamento o lat,lon" class="flex-1 min-w-[200px] border border-gray-300 rounded-lg p-2 text-sm" />
+<button onclick="searchLocation()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm">Buscar</button>
+<button onclick="useMyLocation()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">📍 Mi ubicación</button>
+<select id="layerSelect" onchange="changeLayer()" class="border border-gray-300 rounded-lg p-2 text-sm">
+<optgroup label="── MODIS (sin key · 250m/pixel)">
+<option value="ndvi">🌿 NDVI MODIS</option>
+<option value="truecolor">🌎 Color real MODIS</option>
+<option value="moisture">💧 Humedad MODIS</option>
+<option value="temp">🌡️ Temperatura MODIS</option>
+</optgroup>
+<optgroup label="── Planet Labs (key paga · 3m/pixel · diario)">
+<option value="planet_visual">🌍 Color real Planet (diario)</option>
+<option value="planet_analytic">🌿 Analítico Planet (NDVI diario)</option>
+</optgroup>
+</select>
+<input id="dateInput" type="date" class="border border-gray-300 rounded-lg p-2 text-sm" onchange="changeDate()" />
+<button onclick="toggleOverlay()" id="toggleBtn" class="bg-gray-700 hover:bg-gray-800 text-white px-3 py-2 rounded-lg text-sm">👁️ Ocultar capa</button>
+</div>
+<div id="map"></div>
+<div id="zoomNotice" class="hidden mt-2 p-2 bg-yellow-50 border-l-4 border-yellow-400 text-xs text-yellow-900 rounded"></div>
+<div class="mt-3 flex items-center gap-4 text-xs flex-wrap">
+<span class="font-medium">Leyenda NDVI:</span>
+<div class="flex items-center gap-1"><div class="swatch" style="background:#8B4513"></div><span>Suelo/muerto</span></div>
+<div class="flex items-center gap-1"><div class="swatch" style="background:#FFD700"></div><span>Estresado</span></div>
+<div class="flex items-center gap-1"><div class="swatch" style="background:#9ACD32"></div><span>Saludable</span></div>
+<div class="flex items-center gap-1"><div class="swatch" style="background:#006400"></div><span>Muy vigoroso</span></div>
+</div>
+<div id="satResult" class="mt-4"></div>
+
+<div class="mt-6 p-4 bg-gradient-to-br from-emerald-50 to-blue-50 rounded-xl border-2 border-emerald-300">
+<h3 class="font-semibold text-emerald-900 mb-1 text-lg">🗺️ Análisis por cuadrantes</h3>
+<p class="text-sm text-gray-700 mb-2">El agrónomo IA analiza el campo dividido en zonas y te dice qué hacer en cada una con dosis específicas.</p>
+
+<div class="flex items-center gap-2 mb-3 text-sm">
+<label class="font-medium text-gray-700">Modo:</label>
+<select id="quadMode" onchange="toggleQuadrantMode()" class="border border-gray-300 rounded-lg p-2 text-sm">
+<option value="auto">🔲 Grilla automática (rectangular)</option>
+<option value="manual">✏️ Manual (potrero por potrero, forma libre)</option>
+</select>
+<select id="cropType" class="border border-gray-300 rounded-lg p-2 text-sm">
+<option value="pastura">Pastura / Forraje</option>
+<option value="soja">Soja</option>
+<option value="maiz">Maíz</option>
+<option value="trigo">Trigo</option>
+<option value="otro">Otro cultivo</option>
+</select>
+</div>
+
+<div id="autoControls" class="flex flex-wrap gap-2 items-center">
+<button onclick="startDrawing()" id="drawBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium">📍 Marcar campo</button>
+<button onclick="finishDrawing()" id="finishBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium hidden">✅ Cerrar polígono</button>
+<button onclick="clearField()" id="clearBtn" class="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded-lg text-sm font-medium hidden">🗑️ Borrar</button>
+<select id="gridSize" onchange="onGridChange()" class="border border-gray-300 rounded-lg p-2 text-sm">
+<option value="2">Grilla 2×2 (4 cuadrantes)</option>
+<option value="3" selected>Grilla 3×3 (9 cuadrantes)</option>
+<option value="4">Grilla 4×4 (16 cuadrantes)</option>
+<option value="5">Grilla 5×5 (25 cuadrantes)</option>
+<option value="custom">⚙️ Personalizado…</option>
+</select>
+<input id="gridCustom" type="number" min="1" max="15" value="7" placeholder="N×N" class="hidden border border-gray-300 rounded-lg p-2 text-sm w-20" title="Tamaño N de la grilla (NxN)" />
+<span id="gridCustomHint" class="hidden text-xs text-gray-500"></span>
+<button onclick="analyzeField()" id="analyzeFieldBtn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium hidden">🔬 Analizar campo</button>
+</div>
+
+<div id="manualControls" class="hidden flex flex-wrap gap-2 items-center">
+<label class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer">
+📁 Subir KMZ/KML/GeoJSON
+<input type="file" id="kmzUpload" accept=".kmz,.kml,.geojson,.json" onchange="handleFileUpload(event)" class="hidden" />
+</label>
+<button onclick="startManualQuadrant()" id="addManualBtn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium">+ Agregar potrero a mano</button>
+<input id="manualQuadrantName" type="text" placeholder="Nombre del potrero (ej: Potrero Norte)" class="hidden border border-blue-400 rounded-lg p-2 text-sm w-52" />
+<button onclick="finishManualQuadrant()" id="finishManualBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium hidden">✅ Cerrar potrero</button>
+<button onclick="undoManualPoint()" id="undoManualBtn" class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded-lg text-sm font-medium hidden">↶ Deshacer punto</button>
+<button onclick="clearManualQuadrants()" class="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded-lg text-sm font-medium">🗑️ Borrar todo</button>
+<button onclick="analyzeManualField()" id="analyzeManualBtn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium hidden">🔬 Analizar todos</button>
+<button onclick="savePotreros()" id="savePotrerosBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium hidden">💾 Guardar mi campo</button>
+</div>
+<div class="mt-2" id="savedPotrerosPanel">
+<button onclick="toggleSavedPotreros()" class="text-xs text-indigo-700 underline">📂 Ver potreros guardados</button>
+<div id="savedPotrerosBox" class="hidden mt-2 bg-indigo-50 border border-indigo-200 rounded-lg p-3"></div>
+</div>
+
+<div id="drawHelp" class="mt-2 text-sm text-emerald-800 font-medium"></div>
+<div id="manualHelp" class="mt-2 text-sm text-purple-800 font-medium"></div>
+<div id="manualList" class="mt-2"></div>
+<div id="fieldResult" class="mt-3"></div>
+</div>
+</section>
+
+<section id="panel-chat" class="hidden">
+<h2 class="text-lg font-semibold text-gray-800 mb-1">💬 Consulta al agrónomo IA</h2>
+<p class="text-sm text-gray-600 mb-3">Hacé tu consulta sobre potreros, pasturas, hacienda, cultivos, suelos o cualquier tema del campo. El agrónomo IA habla en uruguayo.</p>
+<div id="chatBox" class="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-3 overflow-y-auto space-y-3" style="min-height:220px;max-height:420px">
+<div class="flex gap-2 items-start">
+<div class="text-2xl leading-none mt-1">🌱</div>
+<div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-800" style="max-width:85%">¡Buenas! Soy tu agrónomo IA especializado en el campo uruguayo. Consultame lo que quieras: pasturas, hacienda, fertilizantes, sanidad, suelos, clima... ¿En qué te puedo dar una mano?</div>
+</div>
+</div>
+<div class="flex gap-2">
+<input id="chatInput" type="text" placeholder="Ej: ¿Cuándo conviene resembrar el campo natural?" class="flex-1 border border-gray-300 rounded-lg p-2 text-sm" onkeydown="if(event.key==='Enter')sendChat()" />
+<button onclick="sendChat()" id="chatSendBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Enviar</button>
+</div>
+<div class="mt-3 flex flex-wrap gap-2">
+<span class="text-xs text-gray-500 self-center">Consultas rápidas:</span>
+<button onclick="quickChat('¿Cuál es la mejor época para fertilizar pasturas en Uruguay?')" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg">🌿 Fertilizar pasturas</button>
+<button onclick="quickChat('Mi hacienda está flaca, ¿qué puedo hacer?')" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg">🐄 Hacienda flaca</button>
+<button onclick="quickChat('¿Cómo controlo las malezas en el potrero?')" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg">🌾 Malezas</button>
+<button onclick="quickChat('¿Cuándo es buen momento para resembrar?')" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg">🌱 Resembrar</button>
+</div>
+</section>
+
+<section id="panel-cow" class="hidden">
+<h2 class="text-lg font-semibold text-gray-800 mb-1">🐄 Estimador de peso de ganado</h2>
+<p class="text-sm text-gray-600 mb-3">Subí foto de la vaca/toro y la IA te estima peso, raza, condición corporal y categoría. <b>Estimación, no medición exacta</b> (±50-100 kg con buena foto). Para mejor precisión: foto de <b>perfil</b> y con un objeto de referencia (persona, poste, alambrado).</p>
+<div class="grid md:grid-cols-2 gap-6">
+<div>
+<div id="cowDrop" class="drop-zone rounded-xl p-8 text-center cursor-pointer bg-emerald-50/50">
+<div class="text-4xl mb-2">🐮</div>
+<p class="text-emerald-800 font-medium">Arrastrá foto del animal</p>
+<p class="text-xs text-gray-600 mt-1">o hacé click para elegir</p>
+<input type="file" id="cowFileInput" accept="image/*" class="hidden" />
+</div>
+<div class="mt-4 space-y-2">
+<label class="block text-sm font-medium text-gray-700">Categoría (si sabés)</label>
+<select id="cowType" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+<option value="auto">Detectar automáticamente</option>
+<option value="ternero">Ternero/a (menor a 1 año)</option>
+<option value="vaquillona">Vaquillona (1-2 años)</option>
+<option value="novillo">Novillo (macho castrado en engorde)</option>
+<option value="vaca">Vaca (hembra adulta)</option>
+<option value="toro">Toro (macho entero)</option>
+</select>
+<label class="block text-sm font-medium text-gray-700 mt-2">Raza (si sabés)</label>
+<select id="cowBreed" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+<option value="auto">Detectar automáticamente</option>
+<option value="hereford">Hereford</option>
+<option value="angus">Aberdeen Angus (negro o colorado)</option>
+<option value="brangus">Brangus</option>
+<option value="braford">Braford</option>
+<option value="brahman">Brahman / Cebú</option>
+<option value="holando">Holando / Holstein (lechera)</option>
+<option value="jersey">Jersey (lechera)</option>
+<option value="charolais">Charolais</option>
+<option value="limousin">Limousin</option>
+<option value="cruza">Cruza / Mestiza</option>
+<option value="otra">Otra</option>
+</select>
+<label class="block text-sm font-medium text-gray-700 mt-2">Vista de la foto</label>
+<select id="cowView" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+<option value="perfil">Perfil lateral (mejor para peso)</option>
+<option value="frente">De frente</option>
+<option value="atras">De atrás</option>
+<option value="angulo">Ángulo / mixta</option>
+<option value="auto">No sé</option>
+</select>
+<label class="block text-sm font-medium text-gray-700 mt-2">Objeto de referencia visible (mejora precisión)</label>
+<select id="cowRef" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+<option value="ninguna">Ninguno</option>
+<option value="persona">Persona al lado</option>
+<option value="poste">Poste de alambrado (~1.20 m)</option>
+<option value="alambrado">Alambrado completo (~1.30 m)</option>
+<option value="manga">Manga / brete</option>
+<option value="cinta">Cinta cintométrica visible</option>
+</select>
+<label class="block text-sm font-medium text-gray-700 mt-2">Notas (opcional)</label>
+<textarea id="cowNotes" rows="2" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Ej: pesó 380 kg hace 2 meses, está en engorde a corral..."></textarea>
+<button id="btnCowAnalyze" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg mt-2 disabled:bg-gray-400" disabled>⚖️ Estimar peso</button>
+</div>
+</div>
+<div>
+<h3 class="text-base font-semibold text-gray-800 mb-2">Resultado</h3>
+<div id="cowPreviewBox" class="bg-gray-100 rounded-xl h-48 flex items-center justify-center text-gray-400 text-sm">Sin imagen</div>
+<div id="cowResult" class="mt-4"></div>
+</div>
+</div>
+</section>
+
+<section id="panel-config" class="hidden">
+<h2 class="text-lg font-semibold text-gray-800 mb-3">Información</h2>
+<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-900">
+<p class="font-semibold mb-1">🤖 AgroVisión IA</p>
+<p>Todos los análisis están integrados — no necesitás configurar nada. Solo sacá la foto o marcá el potrero y la IA hace el resto.</p>
+<p class="mt-2 text-xs text-emerald-700">Motor: Google Gemini · Imágenes satelitales: NASA GIBS + Planet Labs</p>
+</div>
+</section>
+
+</main>
+<footer class="text-emerald-100 text-xs text-center mt-6 opacity-80">AgroVisión · NDVI: NASA GIBS · No reemplaza la visita de un agrónomo a campo<br><span class="opacity-60">Powered by Vortex</span></footer>
+</div>
+
+<script>
+function switchTab(n){['foto','sat','chat','cow'].forEach(t=>{document.getElementById('panel-'+t).classList.add('hidden');const b=document.getElementById('tab-'+t);b.classList.remove('tab-active');b.classList.add('tab-inactive')});document.getElementById('panel-'+n).classList.remove('hidden');const a=document.getElementById('tab-'+n);a.classList.remove('tab-inactive');a.classList.add('tab-active');if(n==='sat'){if(!window.mapInited)initMap();else setTimeout(()=>{if(map){map.invalidateSize();}},100);}}
+
+const drop=document.getElementById('dropZone'),fileInput=document.getElementById('fileInput'),previewBox=document.getElementById('previewBox'),btnAnalyze=document.getElementById('btnAnalyze');
+let currentImage=null,currentImageDataURL=null;
+drop.addEventListener('click',()=>fileInput.click());
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('dragover')});
+drop.addEventListener('dragleave',()=>drop.classList.remove('dragover'));
+drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('dragover');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0])});
+fileInput.addEventListener('change',e=>{if(e.target.files[0])handleFile(e.target.files[0])});
+
+function handleFile(f){const r=new FileReader();r.onload=ev=>{currentImageDataURL=ev.target.result;previewBox.innerHTML=`<img src="${ev.target.result}" class="max-h-48 rounded-xl"/>`;const i=new Image();i.onload=()=>{currentImage=i;btnAnalyze.disabled=false};i.src=ev.target.result};r.readAsDataURL(f)}
+
+btnAnalyze.addEventListener('click',analyzePhoto);
+
+async function analyzePhoto(){
+if(!currentImage)return;
+const out=document.getElementById('analysisOutput');
+out.innerHTML='<div class="text-emerald-700 pulse-dot">🌱 Analizando...</div>';
+const cv=document.createElement('canvas');cv.width=200;cv.height=200;
+const ctx=cv.getContext('2d');ctx.drawImage(currentImage,0,0,200,200);
+const data=ctx.getImageData(0,0,200,200).data;
+let gd=0,gl=0,y=0,br=0,w=0,dk=0,tot=0,rS=0,gS=0,bS=0,nd=0;
+for(let i=0;i<data.length;i+=4){
+const r=data[i],g=data[i+1],b=data[i+2];
+rS+=r;gS+=g;bS+=b;tot++;
+nd+=(g-r)/((g+r)||1);
+const ig=g>r*1.1&&g>b*1.1;
+const iy=r>150&&g>130&&b<110&&Math.abs(r-g)<60;
+const ib=r>g&&g>b&&r<180&&g<140;
+const id=r<60&&g<60&&b<60;
+const iw=r>220&&g>220&&b>220;
+if(iw)w++;else if(id)dk++;else if(ig&&g>110)gd++;else if(ig)gl++;else if(iy)y++;else if(ib)br++;
+}
+nd/=tot;
+const p=n=>(n/tot*100);
+const stats={greenDark:p(gd),greenLight:p(gl),yellow:p(y),brown:p(br),white:p(w),dark:p(dk),visualNDVI:nd};
+const vt=document.getElementById('vegType').value;
+const nt=document.getElementById('userNotes').value;
+const diag=diagnose(stats,vt,nt);
+renderResult(out,stats,diag);
+out.insertAdjacentHTML('beforeend',`<div id="aiBox" class="mt-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded"><div class="font-medium text-blue-900 pulse-dot">🤖 Consultando al agrónomo IA...</div></div>`);
+await callAIVision(currentImageDataURL,vt,nt,stats);
+}
+
+function diagnose(s,vt,nt){
+const findings=[],recommendations=[];
+let hs=50;const nl=(nt||'').toLowerCase();
+const tg=s.greenDark+s.greenLight;
+if(s.greenDark>40)hs+=30;else if(s.greenDark>20)hs+=20;
+if(s.greenLight>30)hs+=10;
+if(s.yellow>15)hs-=15;
+if(s.brown>20)hs-=25;
+if(s.brown>40)hs-=15;
+if(s.visualNDVI>0.15)hs+=10;
+if(s.visualNDVI<0)hs-=20;
+hs=Math.max(0,Math.min(100,hs));
+if(tg>60)findings.push({icon:'✅',txt:`Cobertura verde alta (${tg.toFixed(0)}%). Vigor bueno.`});
+if(tg<30)findings.push({icon:'⚠️',txt:`Cobertura verde baja (${tg.toFixed(0)}%). Estrés severo o suelo expuesto.`});
+if(s.yellow>20)findings.push({icon:'🟡',txt:`Amarillento (${s.yellow.toFixed(0)}%). Clorosis: falta de N o Fe, o estrés hídrico.`});
+if(s.brown>25)findings.push({icon:'🟤',txt:`Material seco (${s.brown.toFixed(0)}%). Tejido muerto o quemado.`});
+if(s.greenLight>s.greenDark*1.5&&tg>30)findings.push({icon:'🟩',txt:'Verde claro predomina: falta de N o sombra excesiva.'});
+if(s.visualNDVI<0.05&&tg<40)findings.push({icon:'📉',txt:`NDVI visual bajo (${s.visualNDVI.toFixed(2)}). Fotosíntesis comprometida.`});
+if(s.dark>15)findings.push({icon:'⚫',txt:'Zonas muy oscuras: sombras o manchas de hongos.'});
+
+if(s.yellow>15||(s.greenLight>35&&s.greenDark<20)){
+recommendations.push({cat:'💧 Nitrógeno',detail:vt==='pasto'||vt==='cancha'?'Urea 46-0-0 a 3-5 kg/100m² o NPK 25-5-15. Regar inmediatamente.':vt==='soja'?'Soja no requiere N (fija por rhizobium). Verificar nodulación: nódulos rosados en raíces. Si hay <10/planta, reinocular.':'Urea 100-150 kg/ha en cultivo, o NPK 15-15-15 en jardín.'});
+}
+if(s.yellow>10&&/clor|amarill|venas/i.test(nl)){
+recommendations.push({cat:'🔬 Clorosis férrica',detail:'Si las venas siguen verdes y el medio amarillea = deficiencia Fe/Mg. Aplicar quelato de hierro (FeEDDHA) o sales de Epsom 20g/L foliar.'});
+}
+if(s.brown>20){
+if(/sec|sin lluv|sin agua|riego/i.test(nl)||s.yellow>15){
+recommendations.push({cat:'💧 Estrés hídrico',detail:'Riego profundo: 25-30 mm en una sola aplicación. Mulch reduce evaporación 40%. Verificar capa compactada.'});
+}else{
+recommendations.push({cat:'🔥 Tejido muerto',detail:'Causas: sequía, herbicida, exceso de fertilizante, animales, hongos. Si los bordes avanzan = enfermedad activa.'});
+}
+}
+if(/hongo|moho|manch|telaraña|telarana/i.test(nl)){
+recommendations.push({cat:'🍄 Fungicida',detail:'Azoxistrobina o tebuconazol. Reducir riego nocturno (principal factor). Mejorar ventilación.'});
+}
+if(/plag|insect|orug|pulg|tri/i.test(nl)){
+recommendations.push({cat:'🐛 Plagas',detail:'Identificar primero. Biológicos: jabón potásico 2%, neem. Químicos solo si la población es alta.'});
+}
+if(hs>70&&recommendations.length===0){
+recommendations.push({cat:'✅ Mantener manejo',detail:'Vegetación saludable. Buen momento para análisis de suelo y planificar próxima fertilización.'});
+}
+if((vt==='pasto'||vt==='cancha')&&hs<60){
+recommendations.push({cat:'🌱 Manejo de césped',detail:'Considerar resiembra. Aireación si hay compactación. Corte: no remover más de 1/3 de la altura. Ideal 4-6 cm.'});
+}
+if(vt==='maiz'&&s.yellow>15){
+recommendations.push({cat:'🌽 Maíz',detail:'V amarilla desde la punta = N. Entre venas en hojas nuevas = Zn. Bordes morados = P. Análisis foliar en V6.'});
+}
+return{findings,recommendations,healthScore:hs};
+}
+
+function renderResult(c,s,d){
+const co=d.healthScore>70?'#16a34a':d.healthScore>40?'#eab308':'#dc2626';
+const lb=d.healthScore>70?'Saludable':d.healthScore>40?'Estrés moderado':'Estrés severo';
+c.innerHTML=`<div class="bg-white rounded-xl border border-gray-200 p-4">
+<div class="flex items-center justify-between mb-3"><span class="font-semibold text-gray-800">Salud estimada</span><span class="text-lg font-bold" style="color:${co}">${d.healthScore}/100 · ${lb}</span></div>
+<div class="health-bar"><div class="health-fill" style="width:${d.healthScore}%;background:${co}"></div></div>
+<div class="grid grid-cols-3 gap-2 mt-4 text-xs">
+<div class="bg-emerald-50 p-2 rounded text-center"><div class="font-bold text-emerald-700">${(s.greenDark+s.greenLight).toFixed(0)}%</div><div>Verde</div></div>
+<div class="bg-yellow-50 p-2 rounded text-center"><div class="font-bold text-yellow-700">${s.yellow.toFixed(0)}%</div><div>Amarillo</div></div>
+<div class="bg-orange-50 p-2 rounded text-center"><div class="font-bold text-orange-800">${s.brown.toFixed(0)}%</div><div>Marrón</div></div>
+</div>
+<div class="mt-4"><h3 class="font-semibold text-gray-800 mb-2">📋 Observaciones</h3><ul class="space-y-1 text-sm text-gray-700">${d.findings.map(f=>`<li>${f.icon} ${f.txt}</li>`).join('')}${d.findings.length===0?'<li class="text-gray-500">Sin hallazgos críticos.</li>':''}</ul></div>
+<div class="mt-4"><h3 class="font-semibold text-gray-800 mb-2">💡 Recomendaciones</h3><div class="space-y-2">${d.recommendations.map(r=>`<details class="bg-emerald-50 rounded-lg p-3 group"><summary class="font-medium text-emerald-900 flex items-center justify-between"><span>${r.cat}</span><span class="text-emerald-600 group-open:rotate-180 transition">▾</span></summary><p class="text-sm text-gray-700 mt-2">${r.detail}</p></details>`).join('')}</div></div>
+</div>`;
+}
+
+async function callAIVision(dURL,vt,nt,stats){
+const box=document.getElementById('aiBox');
+const m=dURL.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+if(!m){box.innerHTML='<p class="text-red-600 text-sm">Formato no soportado.</p>';return}
+try{
+const res=await fetch('/api/vision',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image:m[2],mimeType:m[1],vegType:vt,notes:nt,stats})});
+if(!res.ok){box.innerHTML=await backendErrorHtml(res);return}
+const{text}=await res.json();
+box.innerHTML=`<div class="font-medium text-blue-900 mb-2">🤖 Análisis AgroVisión IA</div><div class="text-sm text-gray-800 whitespace-pre-wrap">${escapeHtml(text)}</div>`;
+}catch(e){box.innerHTML=`<p class="text-red-600 text-sm">❌ ${e.message}</p>`}
+}
+
+function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+async function backendErrorHtml(res){
+if(res.status===429)return`<div class="bg-orange-50 border-l-4 border-orange-500 rounded p-3 text-sm"><b class="text-orange-900">⏱️ Límite de uso alcanzado — esperá un minuto y reintentá</b></div>`;
+if(res.status===503)return`<div class="bg-yellow-50 border-l-4 border-yellow-500 rounded p-3 text-sm text-yellow-900">⚠️ Servicio no disponible. Intentá en un momento.</div>`;
+try{const d=await res.json();return`<div class="bg-red-50 border-l-4 border-red-500 rounded p-3 text-sm text-red-900">❌ Error (${res.status}): ${escapeHtml(d.error||'Intentá de nuevo')}</div>`}
+catch{return`<div class="bg-red-50 border-l-4 border-red-500 rounded p-3 text-sm text-red-900">❌ Error ${res.status} — intentá de nuevo.</div>`}
+}
+
+let map,ndviLayer,baseLayer,currentLayerType='ndvi',currentMarker=null;
+function dateStr(d){const x=new Date();x.setDate(x.getDate()-d);return x.toISOString().split('T')[0]}
+
+function initMap(){
+window.mapInited=true;
+map=L.map('map').setView([-32.5,-56.0],7);
+// Base: Esri World Imagery (satélite HD ~30cm-1m, gratis). Permite ver el campo de verdad al zoomear.
+baseLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'}).addTo(map);
+// Capa de etiquetas (nombres de ciudades, rutas) encima del satélite
+L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/toner-labels/{z}/{x}/{y}.png',{maxZoom:18,opacity:0.7,attribution:'Labels: Stamen'}).addTo(map);
+document.getElementById('dateInput').value=dateStr(20);
+setLayer('ndvi',dateStr(20));
+map.on('click',e=>{if(window.drawingMode)addDrawPoint(e.latlng.lat,e.latlng.lng);else if(window.drawingManualMode)addManualPoint(e.latlng.lat,e.latlng.lng);else showSatAnalysis(e.latlng.lat,e.latlng.lng)});
+map.on('zoomend',()=>{const z=map.getZoom(),n=document.getElementById('zoomNotice');if(z>11){n.innerHTML=`🔍 Zoom ${z} — la capa NDVI se ve pixelada porque MODIS tiene 250m/pixel. <b>El terreno satelital HD debajo sí se ve bien</b>. Si querés ver tu campo en detalle sin pixelado, apretá <b>"👁️ Ocultar capa"</b> arriba.`;n.classList.remove('hidden')}else n.classList.add('hidden')});
+setTimeout(()=>map.invalidateSize(),200);
+window.addEventListener('resize',()=>{if(map)map.invalidateSize()});
+}
+
+function setLayer(type,date){
+if(ndviLayer)map.removeLayer(ndviLayer);
+const t=date||dateStr(10);
+const zn=document.getElementById('zoomNotice');
+
+if(type.startsWith('planet')){
+zn.classList.add('hidden');
+const d=new Date(t);
+const year=d.getFullYear();
+const month=String(d.getMonth()+1).padStart(2,'0');
+const pType=type==='planet_analytic'?'analytic':'visual';
+const tileUrl=`/api/planet/tile/{z}/{x}/{y}?type=${pType}&year=${year}&month=${month}`;
+ndviLayer=L.tileLayer(tileUrl,{
+maxNativeZoom:15,
+maxZoom:18,
+opacity:0.9,
+attribution:'© Planet Labs'
+}).addTo(map);
+ndviLayer.on('tileerror',()=>{
+zn.innerHTML=`⚠️ Error cargando Planet. El mosaico de ${year}-${month} puede no estar disponible todavía. Probá una fecha anterior.`;
+zn.classList.remove('hidden');
+});
+return;
+}
+
+if(type.startsWith('s2')){
+const instanceId=localStorage.getItem('sentinelInstanceId');
+if(!instanceId){
+zn.innerHTML='⚠️ Para usar Sentinel-2 necesitás configurar tu <b>Instance ID</b> en ⚙️ IA avanzada. Es gratis.';
+zn.classList.remove('hidden');
+return;
+}
+zn.classList.add('hidden');
+const layerMap={'s2ndvi':'NDVI','s2truecolor':'TRUE-COLOR','s2falsecolor':'FALSE-COLOR','s2moisture':'MOISTURE-INDEX'};
+const layerName=layerMap[type]||'NDVI';
+// Rango de 15 días terminando en la fecha elegida para buscar imagen menos nubosa
+const endDate=new Date(t);
+const startDate=new Date(t);startDate.setDate(startDate.getDate()-15);
+const timeRange=`${startDate.toISOString().split('T')[0]}/${endDate.toISOString().split('T')[0]}`;
+ndviLayer=L.tileLayer.wms(`https://services.sentinel-hub.com/ogc/wms/${instanceId}`,{
+layers:layerName,
+format:'image/png',
+transparent:true,
+version:'1.3.0',
+time:timeRange,
+maxcc:30,
+opacity:0.85,
+maxNativeZoom:14,
+maxZoom:18,
+attribution:'Sentinel-2 © ESA · Sentinel Hub'
+}).addTo(map);
+ndviLayer.on('tileerror',()=>{
+zn.innerHTML='⚠️ Error cargando Sentinel-2. Verificá que el Instance ID sea correcto y que la configuración tenga las capas activadas.';
+zn.classList.remove('hidden');
+});
+return;
+}
+
+let url,nm=9;
+const base='https://gibs.earthdata.nasa.gov/wmts/epsg3857/best';
+if(type==='ndvi'){url=`${base}/MODIS_Terra_NDVI_16Day/default/${t}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.png`;nm=9}
+else if(type==='truecolor'){url=`${base}/MODIS_Terra_CorrectedReflectance_TrueColor/default/${t}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`;nm=9}
+else if(type==='moisture'){url=`${base}/SMAP_L4_Mean_Rootzone_Soil_Moisture/default/${t}/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png`;nm=6}
+else if(type==='temp'){url=`${base}/MODIS_Terra_Land_Surface_Temp_Day/default/${t}/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png`;nm=7}
+// Opacidad 0.55 para que se vea el terreno HD debajo
+ndviLayer=L.tileLayer(url,{maxNativeZoom:nm,maxZoom:18,opacity:0.55,attribution:'NASA GIBS',errorTileUrl:''}).addTo(map);
+}
+
+function changeLayer(){currentLayerType=document.getElementById('layerSelect').value;setLayer(currentLayerType,document.getElementById('dateInput').value)}
+function toggleOverlay(){if(!ndviLayer)return;const b=document.getElementById('toggleBtn');if(map.hasLayer(ndviLayer)){map.removeLayer(ndviLayer);b.innerHTML='👁️ Mostrar capa'}else{ndviLayer.addTo(map);b.innerHTML='👁️ Ocultar capa'}}
+function changeDate(){setLayer(currentLayerType,document.getElementById('dateInput').value)}
+
+async function searchLocation(){
+const q=document.getElementById('searchInput').value.trim();if(!q)return;
+const m=q.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
+if(m){const lat=parseFloat(m[1]),lon=parseFloat(m[2]);map.setView([lat,lon],9);showSatAnalysis(lat,lon);return}
+try{const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q+', Uruguay')}&countrycodes=uy&limit=1`);const d=await r.json();if(d.length){const lat=parseFloat(d[0].lat),lon=parseFloat(d[0].lon);map.setView([lat,lon],9);showSatAnalysis(lat,lon)}else{const r2=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`);const d2=await r2.json();if(d2.length){const lat=parseFloat(d2[0].lat),lon=parseFloat(d2[0].lon);map.setView([lat,lon],9);showSatAnalysis(lat,lon)}else alert('No se encontró el lugar.')}}catch(e){alert('Error: '+e.message)}
+}
+
+function useMyLocation(){if(!navigator.geolocation)return alert('No disponible.');navigator.geolocation.getCurrentPosition(p=>{const{latitude:lat,longitude:lon}=p.coords;map.setView([lat,lon],9);showSatAnalysis(lat,lon)},()=>alert('No se pudo.'))}
+
+function showSatAnalysis(lat,lon){
+if(currentMarker)map.removeLayer(currentMarker);
+currentMarker=L.marker([lat,lon]).addTo(map).bindPopup(`📍 ${lat.toFixed(4)}, ${lon.toFixed(4)}`).openPopup();
+const date=document.getElementById('dateInput').value;
+const mo=parseInt(date.split('-')[1]);
+const sh=lat<0;
+let se;
+if(sh){if([12,1,2].includes(mo))se='verano';else if([3,4,5].includes(mo))se='otoño';else if([6,7,8].includes(mo))se='invierno';else se='primavera'}
+else{if([6,7,8].includes(mo))se='verano';else if([9,10,11].includes(mo))se='otoño';else if([12,1,2].includes(mo))se='invierno';else se='primavera'}
+const tips={verano:'Riego crítico. Evaluar estrés hídrico. Vigilar plagas.',otoño:'Buen momento para resiembra. Aplicar P y K.',invierno:'Mínimo crecimiento. Vigilar heladas.',primavera:'Despertar vegetativo. Arranque con N+P. Control de malezas.'};
+document.getElementById('satResult').innerHTML=`<div class="bg-white border rounded-xl p-4"><h3 class="font-semibold text-gray-800 mb-2">📍 Análisis de zona</h3><div class="text-sm text-gray-700 space-y-1"><p><b>Ubicación:</b> ${lat.toFixed(4)}, ${lon.toFixed(4)} · ${sh?'Hemisferio Sur':'Hemisferio Norte'}</p><p><b>Fecha:</b> ${date} · <b>Estación:</b> ${se}</p><div class="mt-3 p-3 bg-emerald-50 rounded"><b class="text-emerald-900">Manejo recomendado:</b><p class="mt-1">${tips[se]}</p></div><p class="text-xs text-gray-500 mt-2">💡 Si NDVI se ve marrón pero color real verde, probá fechas anteriores (MODIS actualiza cada 8 días).</p></div></div>`;
+}
+
+const guided={};
+function setG(k,v,ev){guided[k]=v;document.querySelectorAll(`.guided-btn[data-key="${k}"]`).forEach(b=>{b.classList.remove('bg-emerald-600','text-white');b.classList.add('bg-white')});if(ev&&ev.target){ev.target.classList.add('bg-emerald-600','text-white');ev.target.classList.remove('bg-white')}}
+
+function diagnoseGuided(){
+if(!guided.color){alert('Elegí al menos el color predominante.');return}
+const its=[];let ur='Moderada';
+if(guided.color==='amarillo'){its.push({title:'🟡 Clorosis',detail:'Amarillamiento general = falta de N (hojas viejas) o Fe (hojas nuevas). También puede ser exceso de agua que asfixia raíces.'});if(guided.fert==='viejo'||guided.fert==='nunca')its.push({title:'💡 Fertilizar con N',detail:'Urea (46% N) a 3-5 g/m² o 80-120 kg/ha. Regar después. Resultado en 7-10 días.'});if(guided.agua==='encharcado'){its.push({title:'⚠️ Drenar',detail:'Encharcado + amarillo = raíces sin oxígeno. Drenar, suspender riego 1 semana, airear.'});ur='Alta'}}
+if(guided.color==='marron'){its.push({title:'🟤 Tejido muerto',detail:'Causas: sequía, calor, herbicida, exceso de fertilizante, animales o enfermedad fúngica.'});if(guided.agua==='seco'){its.push({title:'💧 Riego profundo',detail:'25-30 mm de una vez. Repetir cada 5-7 días. Mulch reduce evaporación 40%.'});ur='Alta'}its.push({title:'🔍 Confirmar',detail:'Bordes que avanzan = enfermedad activa. Estáticos = daño ya ocurrido.'})}
+if(guided.color==='manchas'){its.push({title:'🔘 Manchas',detail:'Circulares con borde definido = hongos (dollar spot, roya). Irregulares = plaga o daño mecánico.'});if(guided.plaga==='hongos'||guided.plaga==='telarana'){its.push({title:'🍄 Fungicida',detail:'Azoxistrobina + propiconazol al atardecer. Reducir riego nocturno.'});ur='Alta'}}
+if(guided.color==='verde-claro'){its.push({title:'🟩 Vigor bajo',detail:'Falta de N, sombra excesiva o variedad de baja calidad.'});if(guided.fert!=='reciente')its.push({title:'💡 Fertilizar',detail:'NPK 15-15-15. Para verde rápido: urea o nitrato de amonio. Combinar con riego.'})}
+if(guided.color==='verde-oscuro'){its.push({title:'✅ Saludable',detail:'Buena clorofila y N disponible. Mantener manejo. Cuidado con exceso de N (atrae plagas).'});ur='Baja'}
+if(guided.plaga==='insectos')its.push({title:'🐛 Insectos',detail:'Identificar primero. Jabón potásico 2%, neem. Químicos solo si la población es alta.'});
+const cm={'Alta':'#dc2626','Moderada':'#eab308','Baja':'#16a34a'};
+document.getElementById('guidedResult').innerHTML=`<div class="bg-white rounded-xl border p-4"><div class="flex items-center justify-between mb-3"><h3 class="font-semibold text-gray-800">📋 Diagnóstico</h3><span class="text-sm font-bold" style="color:${cm[ur]}">Urgencia: ${ur}</span></div><div class="space-y-3">${its.map(it=>`<div class="border-l-4 border-emerald-500 pl-3 py-2"><div class="font-medium text-gray-900">${it.title}</div><div class="text-sm text-gray-700 mt-1">${it.detail}</div></div>`).join('')}</div><p class="text-xs text-gray-500 mt-4">Diagnóstico orientativo.</p></div>`;
+}
+
+
+// ============ ESTIMADOR DE PESO DE GANADO ============
+const cowDrop=document.getElementById('cowDrop');
+const cowFileInput=document.getElementById('cowFileInput');
+const cowPreviewBox=document.getElementById('cowPreviewBox');
+const btnCowAnalyze=document.getElementById('btnCowAnalyze');
+let cowImage=null,cowImageDataURL=null;
+cowDrop.addEventListener('click',()=>cowFileInput.click());
+cowDrop.addEventListener('dragover',e=>{e.preventDefault();cowDrop.classList.add('dragover')});
+cowDrop.addEventListener('dragleave',()=>cowDrop.classList.remove('dragover'));
+cowDrop.addEventListener('drop',e=>{e.preventDefault();cowDrop.classList.remove('dragover');if(e.dataTransfer.files[0])handleCowFile(e.dataTransfer.files[0])});
+cowFileInput.addEventListener('change',e=>{if(e.target.files[0])handleCowFile(e.target.files[0])});
+
+function handleCowFile(f){
+const r=new FileReader();
+r.onload=ev=>{
+cowImageDataURL=ev.target.result;
+cowPreviewBox.innerHTML=`<img src="${ev.target.result}" class="max-h-48 rounded-xl"/>`;
+const i=new Image();i.onload=()=>{cowImage=i;btnCowAnalyze.disabled=false};i.src=ev.target.result;
+};
+r.readAsDataURL(f);
+}
+
+btnCowAnalyze.addEventListener('click',analyzeCow);
+
+async function analyzeCow(){
+if(!cowImageDataURL)return;
+const out=document.getElementById('cowResult');
+out.innerHTML='<div class="text-emerald-700 pulse-dot text-sm">🐄 Analizando animal con AgroVisión IA...</div>';
+const m=cowImageDataURL.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+if(!m){out.innerHTML='<p class="text-red-600 text-sm">Formato no soportado.</p>';return}
+const tp=document.getElementById('cowType').value;
+const br=document.getElementById('cowBreed').value;
+const vw=document.getElementById('cowView').value;
+const rf=document.getElementById('cowRef').value;
+const nt=document.getElementById('cowNotes').value;
+try{
+const res=await fetch('/api/cow',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image:m[2],mimeType:m[1],cowType:tp,breed:br,view:vw,ref:rf,notes:nt})});
+if(!res.ok){out.innerHTML=await backendErrorHtml(res);return}
+const{data}=await res.json();
+renderCowResult(data);
+}catch(e){out.innerHTML=`<p class="text-red-600 text-sm">❌ ${e.message}</p>`}
+}
+
+function renderCowResult(ai){
+const conf={'alta':'#16a34a','media':'#f59e0b','baja':'#dc2626'};
+const cc=conf[ai.confianza]||'#6b7280';
+document.getElementById('cowResult').innerHTML=`
+<div class="bg-white border-2 border-emerald-300 rounded-xl p-4">
+<div class="flex items-center justify-between mb-2"><h4 class="font-bold text-emerald-900 text-lg">⚖️ Peso estimado</h4><span class="text-xs px-2 py-1 rounded text-white font-bold" style="background:${cc}">Confianza ${ai.confianza}</span></div>
+<div class="text-center my-3 bg-emerald-50 p-3 rounded-lg">
+<div class="text-3xl font-bold text-emerald-700">${ai.peso_promedio} kg</div>
+<div class="text-sm text-gray-600">Rango: ${ai.peso_min} - ${ai.peso_max} kg · ${ai.margen_error}</div>
+</div>
+<div class="grid grid-cols-2 gap-2 text-sm">
+<div class="bg-gray-50 p-2 rounded"><b>Raza:</b><br>${ai.raza_detectada}</div>
+<div class="bg-gray-50 p-2 rounded"><b>Categoría:</b><br>${ai.categoria}</div>
+<div class="bg-gray-50 p-2 rounded"><b>Edad:</b><br>${ai.edad_estimada}</div>
+<div class="bg-gray-50 p-2 rounded"><b>Condición corporal:</b><br>${ai.condicion_corporal}</div>
+</div>
+<div class="mt-3 text-sm">
+<div class="mb-2"><b class="text-gray-800">💪 Musculatura:</b> <span class="text-gray-700">${ai.musculatura}</span></div>
+<div class="mb-2"><b class="text-gray-800">👁️ Observaciones:</b> <span class="text-gray-700">${ai.observaciones}</span></div>
+<div class="mb-2 p-2 bg-blue-50 rounded"><b class="text-blue-900">💡 Recomendación:</b> <span class="text-blue-900">${ai.recomendacion}</span></div>
+<div class="text-xs text-gray-500 mt-2"><b>Sobre la foto:</b> ${ai.calidad_foto}</div>
+</div>
+<p class="text-xs text-gray-500 mt-3 italic">⚠️ Estimación visual con IA. No reemplaza la báscula ni cintométrica. Margen típico ±50-100 kg.</p>
+</div>`;
+}
+
+// ============ ANÁLISIS POR CUADRANTES ============
+let drawnPoints=[],previewLayer=null,vertexMarkers=[],fieldPolygon=null,quadrantLayers=[];
+window.drawingMode=false;
+
+function startDrawing(){
+if(!window.mapInited){alert('Esperá a que cargue el mapa');return}
+clearField();
+window.drawingMode=true;
+document.getElementById('drawHelp').innerHTML='✏️ <b>Modo dibujo activo.</b> Hacé click en cada esquina de tu campo (mínimo 3). Cuando termines apretá "Cerrar polígono".';
+document.getElementById('drawBtn').classList.add('hidden');
+document.getElementById('finishBtn').classList.remove('hidden');
+document.getElementById('clearBtn').classList.remove('hidden');
+map.getContainer().style.cursor='crosshair';
+}
+
+function addDrawPoint(lat,lon){
+drawnPoints.push([lat,lon]);
+const mk=L.circleMarker([lat,lon],{radius:6,color:'#dc2626',fillColor:'#fff',fillOpacity:1,weight:3}).addTo(map);
+vertexMarkers.push(mk);
+if(previewLayer)map.removeLayer(previewLayer);
+if(drawnPoints.length>=2){
+previewLayer=L.polyline(drawnPoints,{color:'#dc2626',weight:2,dashArray:'6,4'}).addTo(map);
+}
+document.getElementById('drawHelp').innerHTML=`✏️ ${drawnPoints.length} esquina(s) marcada(s). Seguí marcando o apretá "Cerrar polígono".`;
+}
+
+function finishDrawing(){
+if(drawnPoints.length<3){alert('Marcá al menos 3 esquinas.');return}
+window.drawingMode=false;
+map.getContainer().style.cursor='';
+if(previewLayer){map.removeLayer(previewLayer);previewLayer=null}
+vertexMarkers.forEach(m=>map.removeLayer(m));vertexMarkers=[];
+fieldPolygon=L.polygon(drawnPoints,{color:'#dc2626',weight:3,fillOpacity:0.08,fillColor:'#dc2626'}).addTo(map);
+map.fitBounds(fieldPolygon.getBounds(),{padding:[40,40]});
+document.getElementById('drawHelp').innerHTML=`✅ Campo marcado con ${drawnPoints.length} puntos. Elegí grilla y cultivo, después apretá "Analizar campo".`;
+document.getElementById('finishBtn').classList.add('hidden');
+document.getElementById('analyzeFieldBtn').classList.remove('hidden');
+}
+
+function clearField(){
+drawnPoints=[];window.drawingMode=false;
+map.getContainer().style.cursor='';
+if(previewLayer){map.removeLayer(previewLayer);previewLayer=null}
+vertexMarkers.forEach(m=>map.removeLayer(m));vertexMarkers=[];
+if(fieldPolygon){map.removeLayer(fieldPolygon);fieldPolygon=null}
+quadrantLayers.forEach(l=>{if(l.rect)map.removeLayer(l.rect);if(l.lbl)map.removeLayer(l.lbl)});quadrantLayers=[];
+document.getElementById('drawHelp').innerHTML='';
+document.getElementById('fieldResult').innerHTML='';
+document.getElementById('drawBtn').classList.remove('hidden');
+document.getElementById('finishBtn').classList.add('hidden');
+document.getElementById('clearBtn').classList.add('hidden');
+document.getElementById('analyzeFieldBtn').classList.add('hidden');
+}
+
+// ============ IMPORTAR ARCHIVO (KMZ/KML/GeoJSON) ============
+async function handleFileUpload(ev){
+const file=ev.target.files[0];if(!file)return;
+const nm=file.name.toLowerCase();
+const list=document.getElementById('manualList');
+list.innerHTML='<div class="text-indigo-700 pulse-dot text-sm">📂 Leyendo archivo...</div>';
+try{
+let polys=[];
+if(nm.endsWith('.kmz'))polys=await parseKMZ(file);
+else if(nm.endsWith('.kml'))polys=parseKML(await file.text());
+else if(nm.endsWith('.geojson')||nm.endsWith('.json'))polys=parseGeoJSON(await file.text());
+else throw new Error('Formato no soportado. Usá KMZ, KML o GeoJSON.');
+if(polys.length===0){list.innerHTML='<div class="bg-red-50 border-l-4 border-red-500 p-3 rounded text-sm text-red-900">❌ No se encontraron polígonos en el archivo.</div>';return}
+document.getElementById('quadMode').value='manual';
+toggleQuadrantMode();
+showPolygonSelection(polys);
+}catch(e){list.innerHTML=`<div class="bg-red-50 border-l-4 border-red-500 p-3 rounded text-sm text-red-900">❌ ${e.message}</div>`}
+ev.target.value='';
+}
+
+async function parseKMZ(file){
+if(typeof JSZip==='undefined')throw new Error('JSZip no cargó. Refrescá la página.');
+const zip=await JSZip.loadAsync(file);
+let kmlText=null;
+for(const fn of Object.keys(zip.files)){
+if(fn.toLowerCase().endsWith('.kml')){kmlText=await zip.files[fn].async('text');break}
+}
+if(!kmlText)throw new Error('No se encontró archivo .kml dentro del KMZ');
+return parseKML(kmlText);
+}
+
+function parseKML(text){
+const parser=new DOMParser();
+const doc=parser.parseFromString(text,'text/xml');
+const placemarks=doc.getElementsByTagName('Placemark');
+const polys=[];
+for(let i=0;i<placemarks.length;i++){
+const pm=placemarks[i];
+const nameEl=pm.getElementsByTagName('name')[0];
+const name=nameEl?nameEl.textContent.trim():`Polígono ${i+1}`;
+const polygonEls=pm.getElementsByTagName('Polygon');
+for(let j=0;j<polygonEls.length;j++){
+const pol=polygonEls[j];
+// Buscar coords dentro de outerBoundaryIs LinearRing
+let coordsEl=null;
+const obi=pol.getElementsByTagName('outerBoundaryIs')[0];
+if(obi){const lr=obi.getElementsByTagName('LinearRing')[0];if(lr)coordsEl=lr.getElementsByTagName('coordinates')[0]}
+if(!coordsEl)coordsEl=pol.getElementsByTagName('coordinates')[0];
+if(!coordsEl)continue;
+const pts=parseCoordString(coordsEl.textContent);
+if(pts.length>=3){
+const dispName=polygonEls.length>1?`${name} (${j+1})`:name;
+polys.push({name:dispName,points:pts});
+}
+}
+}
+return polys;
+}
+
+function parseCoordString(s){
+return s.trim().split(/\s+/).filter(c=>c).map(c=>{
+const parts=c.split(',');
+const lon=parseFloat(parts[0]),lat=parseFloat(parts[1]);
+return[lat,lon];
+}).filter(p=>!isNaN(p[0])&&!isNaN(p[1]));
+}
+
+function parseGeoJSON(text){
+const data=JSON.parse(text);
+const polys=[];
+const feats=data.features||(data.type==='Feature'?[data]:[]);
+feats.forEach((f,i)=>{
+const name=(f.properties&&(f.properties.name||f.properties.Name||f.properties.NAME))||`Polígono ${i+1}`;
+const g=f.geometry;if(!g)return;
+if(g.type==='Polygon'){
+const pts=g.coordinates[0].map(c=>[c[1],c[0]]);
+if(pts.length>=3)polys.push({name,points:pts});
+}else if(g.type==='MultiPolygon'){
+g.coordinates.forEach((poly,j)=>{
+const pts=poly[0].map(c=>[c[1],c[0]]);
+if(pts.length>=3)polys.push({name:`${name} (${j+1})`,points:pts});
+});
+}
+});
+return polys;
+}
+
+function showPolygonSelection(polygons){
+window._uploadedPolygons=polygons;
+const list=document.getElementById('manualList');
+const defLimit=Math.min(polygons.length,30);
+list.innerHTML=`<div class="bg-indigo-50 border-2 border-indigo-300 rounded-lg p-3">
+<div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+<b class="text-indigo-900">📁 ${polygons.length} polígono(s) encontrado(s) en el archivo</b>
+<div class="flex gap-2 flex-wrap">
+<input id="polyFilter" type="text" placeholder="Filtrar por nombre..." class="text-xs border rounded px-2 py-1" oninput="filterPolygons(this.value)" />
+<button onclick="selectAllPolys(true)" class="text-xs bg-indigo-600 text-white px-2 py-1 rounded">Marcar todos visibles</button>
+<button onclick="selectAllPolys(false)" class="text-xs bg-gray-400 text-white px-2 py-1 rounded">Desmarcar todos</button>
+<button onclick="importSelectedPolys()" class="text-xs bg-emerald-600 text-white px-3 py-1 rounded font-medium">✅ Importar seleccionados</button>
+</div>
+</div>
+<div id="polyList" class="max-h-64 overflow-y-auto bg-white border rounded p-2">
+${polygons.map((p,i)=>`<label class="poly-item flex items-center gap-2 py-1 px-1 hover:bg-gray-50 cursor-pointer" data-name="${escapeHtml(p.name.toLowerCase())}">
+<input type="checkbox" class="poly-check" data-idx="${i}" ${i<defLimit?'checked':''} />
+<span class="text-sm flex-1">${escapeHtml(p.name)}</span>
+<span class="text-xs text-gray-500">${p.points.length} pts</span>
+</label>`).join('')}
+</div>
+${polygons.length>30?'<p class="text-xs text-indigo-700 mt-1">💡 Tip: por defecto marcamos los primeros 30. Usá el buscador para filtrar (ej: escribí "potrero" o "chacra").</p>':''}
+</div>`;
+}
+
+function filterPolygons(q){
+const ql=q.toLowerCase().trim();
+document.querySelectorAll('.poly-item').forEach(el=>{
+const matches=!ql||el.dataset.name.includes(ql);
+el.style.display=matches?'':'none';
+});
+}
+
+function selectAllPolys(yes){
+document.querySelectorAll('.poly-item').forEach(el=>{
+if(el.style.display!=='none'){
+const cb=el.querySelector('.poly-check');
+if(cb)cb.checked=yes;
+}
+});
+}
+
+function importSelectedPolys(){
+const all=window._uploadedPolygons||[];
+const selected=[];
+document.querySelectorAll('.poly-check:checked').forEach(cb=>{
+const idx=parseInt(cb.dataset.idx);if(!isNaN(idx))selected.push(all[idx]);
+});
+if(selected.length===0){alert('Seleccioná al menos un polígono.');return}
+if(selected.length>50){if(!confirm(`Vas a importar ${selected.length} polígonos. La IA va a tardar bastante y consumir muchas peticiones. ¿Seguir?`))return}
+const allPts=[];
+selected.forEach(p=>{const id=`P${manualQuadrants.length+1}`;
+const polygon=L.polygon(p.points,{color:'#7c3aed',weight:2,fillOpacity:0.15,fillColor:'#7c3aed'}).addTo(map);
+const ctr=polygon.getBounds().getCenter();
+const shortName=p.name.length>22?p.name.substring(0,22)+'…':p.name;
+const label=L.marker([ctr.lat,ctr.lng],{icon:L.divIcon({html:`<div id="mqlbl-${id}" style="background:white;padding:3px 6px;border-radius:5px;border:2px solid #7c3aed;font-size:10px;font-weight:bold;white-space:nowrap;color:#7c3aed;max-width:160px;overflow:hidden">${id} ${escapeHtml(shortName)}</div>`,className:'',iconSize:[170,22]})}).addTo(map);
+manualQuadrants.push({id,name:p.name,points:p.points,polygon,label,centerLat:ctr.lat,centerLon:ctr.lng});
+allPts.push(...p.points);
+});
+if(allPts.length>0)map.fitBounds(L.latLngBounds(allPts),{padding:[30,30]});
+document.getElementById('analyzeManualBtn').classList.remove('hidden');
+document.getElementById('manualHelp').innerHTML=`✅ Importados ${selected.length} polígono(s). Total: ${manualQuadrants.length} potrero(s). Apretá "🔬 Analizar todos" cuando quieras.`;
+updateManualList();
+window._uploadedPolygons=null;
+}
+
+// ============ MODO CUADRANTES MANUALES ============
+let manualQuadrants=[],currentManualDraw=null;
+window.drawingManualMode=false;
+
+function toggleQuadrantMode(){
+const m=document.getElementById('quadMode').value;
+document.getElementById('autoControls').classList.toggle('hidden',m!=='auto');
+document.getElementById('manualControls').classList.toggle('hidden',m!=='manual');
+// Reset cualquier modo activo
+window.drawingMode=false;window.drawingManualMode=false;
+if(map)map.getContainer().style.cursor='';
+}
+
+function startManualQuadrant(){
+if(!window.mapInited){alert('Esperá a que cargue el mapa');return}
+currentManualDraw={points:[],markers:[],preview:null};
+window.drawingManualMode=true;window.drawingMode=false;
+document.getElementById('manualHelp').innerHTML=`✏️ <b>Dibujando potrero ${manualQuadrants.length+1}</b>. Hacé click en cada esquina del potrero (mínimo 3 puntos). Después apretá "Cerrar potrero".`;
+document.getElementById('finishManualBtn').classList.remove('hidden');
+document.getElementById('undoManualBtn').classList.remove('hidden');
+document.getElementById('addManualBtn').classList.add('hidden');
+document.getElementById('manualQuadrantName').classList.remove('hidden');
+document.getElementById('manualQuadrantName').value='';
+document.getElementById('manualQuadrantName').placeholder=`Nombre del potrero ${manualQuadrants.length+1} (ej: Potrero Norte)`;
+map.getContainer().style.cursor='crosshair';
+}
+
+function addManualPoint(lat,lon){
+if(!currentManualDraw)return;
+currentManualDraw.points.push([lat,lon]);
+const mk=L.circleMarker([lat,lon],{radius:6,color:'#7c3aed',fillColor:'#fff',fillOpacity:1,weight:3}).addTo(map);
+currentManualDraw.markers.push(mk);
+if(currentManualDraw.preview)map.removeLayer(currentManualDraw.preview);
+if(currentManualDraw.points.length>=2){
+currentManualDraw.preview=L.polyline(currentManualDraw.points,{color:'#7c3aed',weight:2,dashArray:'6,4'}).addTo(map);
+}
+document.getElementById('manualHelp').innerHTML=`✏️ Potrero ${manualQuadrants.length+1}: ${currentManualDraw.points.length} esquina(s) marcada(s). Seguí o cerrá.`;
+}
+
+function undoManualPoint(){
+if(!currentManualDraw||currentManualDraw.points.length===0)return;
+currentManualDraw.points.pop();
+const lastMk=currentManualDraw.markers.pop();
+if(lastMk)map.removeLayer(lastMk);
+if(currentManualDraw.preview)map.removeLayer(currentManualDraw.preview);
+if(currentManualDraw.points.length>=2){
+currentManualDraw.preview=L.polyline(currentManualDraw.points,{color:'#7c3aed',weight:2,dashArray:'6,4'}).addTo(map);
+}else{currentManualDraw.preview=null}
+document.getElementById('manualHelp').innerHTML=`✏️ Potrero ${manualQuadrants.length+1}: ${currentManualDraw.points.length} esquina(s).`;
+}
+
+function finishManualQuadrant(){
+if(!currentManualDraw||currentManualDraw.points.length<3){alert('Marcá al menos 3 esquinas.');return}
+window.drawingManualMode=false;
+map.getContainer().style.cursor='';
+if(currentManualDraw.preview)map.removeLayer(currentManualDraw.preview);
+currentManualDraw.markers.forEach(m=>map.removeLayer(m));
+const idx=manualQuadrants.length+1;
+const id=`P${idx}`;
+const customName=document.getElementById('manualQuadrantName').value.trim()||`Potrero ${idx}`;
+const pts=[...currentManualDraw.points];
+const poly=L.polygon(pts,{color:'#7c3aed',weight:3,fillOpacity:0.15,fillColor:'#7c3aed'}).addTo(map);
+const ctr=poly.getBounds().getCenter();
+const shortLabel=customName.length>22?customName.substring(0,22)+'…':customName;
+const lbl=L.marker([ctr.lat,ctr.lng],{icon:L.divIcon({html:`<div id="mqlbl-${id}" style="background:white;padding:3px 8px;border-radius:5px;border:2px solid #7c3aed;font-size:11px;font-weight:bold;white-space:nowrap;color:#7c3aed;max-width:160px;overflow:hidden">${id} ${escapeHtml(shortLabel)}</div>`,className:'',iconSize:[170,24]})}).addTo(map);
+manualQuadrants.push({id,name:customName,points:pts,polygon:poly,label:lbl,centerLat:ctr.lat,centerLon:ctr.lng});
+currentManualDraw=null;
+document.getElementById('finishManualBtn').classList.add('hidden');
+document.getElementById('undoManualBtn').classList.add('hidden');
+document.getElementById('manualQuadrantName').classList.add('hidden');
+document.getElementById('addManualBtn').classList.remove('hidden');
+document.getElementById('analyzeManualBtn').classList.remove('hidden');
+document.getElementById('savePotrerosBtn').classList.remove('hidden');
+document.getElementById('manualHelp').innerHTML=`✅ <b>${escapeHtml(customName)}</b> (${id}) agregado. Total: ${manualQuadrants.length} potrero(s). Agregá más o apretá "Analizar todos".`;
+updateManualList();
+}
+
+function clearManualQuadrants(){
+manualQuadrants.forEach(q=>{if(q.polygon)map.removeLayer(q.polygon);if(q.label)map.removeLayer(q.label)});
+manualQuadrants=[];
+if(currentManualDraw){
+if(currentManualDraw.preview)map.removeLayer(currentManualDraw.preview);
+currentManualDraw.markers.forEach(m=>map.removeLayer(m));
+currentManualDraw=null;
+}
+window.drawingManualMode=false;
+if(map)map.getContainer().style.cursor='';
+document.getElementById('manualHelp').innerHTML='';
+document.getElementById('manualList').innerHTML='';
+document.getElementById('finishManualBtn').classList.add('hidden');
+document.getElementById('undoManualBtn').classList.add('hidden');
+document.getElementById('analyzeManualBtn').classList.add('hidden');
+document.getElementById('savePotrerosBtn').classList.add('hidden');
+document.getElementById('manualQuadrantName').classList.add('hidden');
+document.getElementById('addManualBtn').classList.remove('hidden');
+document.getElementById('fieldResult').innerHTML='';
+}
+
+function updateManualList(){
+const list=document.getElementById('manualList');
+if(manualQuadrants.length===0){list.innerHTML='';return}
+list.innerHTML=`<div class="text-sm bg-purple-50 p-2 rounded"><b class="text-purple-900">${manualQuadrants.length} potrero(s) marcado(s):</b><div class="flex flex-wrap gap-1 mt-1">${manualQuadrants.map(q=>`<span class="inline-flex items-center gap-1 bg-white border border-purple-300 px-2 py-1 rounded text-xs font-bold text-purple-700"><span>${q.id}</span><span class="font-normal text-purple-500">${escapeHtml(q.name!==q.id?q.name:'')}</span></span>`).join('')}</div></div>`;
+}
+
+async function analyzeManualField(){
+if(manualQuadrants.length===0){alert('Marcá al menos un potrero.');return}
+const crop=document.getElementById('cropType').value;
+const out=document.getElementById('fieldResult');
+out.innerHTML='<div class="text-emerald-700 pulse-dot text-sm">🔬 Leyendo NDVI de cada potrero...</div>';
+const quads=[];
+for(const mq of manualQuadrants){
+const ndvi=await readNdviAt(mq.centerLat,mq.centerLon);
+const v=ndvi.value;
+const col=ndviToColor(v);
+mq.polygon.setStyle({color:col,fillColor:col,fillOpacity:0.3,weight:3});
+quads.push({id:mq.id,row:1,col:1,centerLat:mq.centerLat,centerLon:mq.centerLon,ndvi});
+}
+// Reutilizar quadrantLayers para que renderFieldAI pueda recolorear
+quadrantLayers=manualQuadrants.map(mq=>({rect:mq.polygon,lbl:mq.label,id:mq.id,isManual:true}));
+out.innerHTML='<div class="text-emerald-700 pulse-dot text-sm">🤖 Consultando al agrónomo IA con '+quads.length+' potrero(s)...</div>';
+await sendFieldToAI(quads,crop);
+}
+
+// Gradiente de 7 colores según puntaje de salud (0-100) o NDVI (0-1)
+function scoreToColor(s){
+if(s===null||s===undefined)return'#9ca3af';
+if(s<40)return'#dc2626'; // rojo - bajo
+if(s<70)return'#eab308'; // amarillo - medio
+return'#16a34a';         // verde - alto
+}
+function ndviToColor(v){
+if(v===null||v===undefined)return'#9ca3af';
+return scoreToColor(v*100); // convierte NDVI 0-1 a score 0-100
+}
+function statusLabel(s){
+if(s===null)return'Sin datos';
+if(s<40)return'Bajo';if(s<70)return'Medio';
+return'Alto';
+}
+
+function pointInPolygon(pt,vs){
+const x=pt[0],y=pt[1];let inside=false;
+for(let i=0,j=vs.length-1;i<vs.length;j=i++){
+const xi=vs[i][0],yi=vs[i][1],xj=vs[j][0],yj=vs[j][1];
+if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi+1e-12)+xi))inside=!inside;
+}
+return inside;
+}
+
+async function readNdviAt(lat,lon){
+const z=9;const n=Math.pow(2,z);
+const xt=Math.floor((lon+180)/360*n);
+const lr=lat*Math.PI/180;
+const ytF=(1-Math.asinh(Math.tan(lr))/Math.PI)/2*n;
+const yt=Math.floor(ytF);
+const userDate=document.getElementById('dateInput').value;
+// Probar la fecha del usuario, después fechas anteriores cada 16 días (productos 16-day)
+const dates=[userDate];
+const d=new Date(userDate);
+for(let i=1;i<=4;i++){d.setDate(d.getDate()-16);dates.push(d.toISOString().split('T')[0])}
+for(const dt of dates){
+const url=`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_NDVI_16Day/default/${dt}/GoogleMapsCompatible_Level9/${z}/${yt}/${xt}.png`;
+try{
+const img=new Image();img.crossOrigin='anonymous';
+await new Promise((res,rej)=>{img.onload=res;img.onerror=()=>rej(new Error('load'));img.src=url});
+const ts=256;
+const xp=Math.max(0,Math.min(ts-1,Math.floor(((lon+180)/360*n-xt)*ts)));
+const yp=Math.max(0,Math.min(ts-1,Math.floor((ytF-yt)*ts)));
+const c=document.createElement('canvas');c.width=ts;c.height=ts;
+const cx=c.getContext('2d');cx.drawImage(img,0,0);
+const px=cx.getImageData(xp,yp,1,1).data;
+const r=classifyNdviColor(px[0],px[1],px[2],px[3]);
+if(r.value!==null)return r;
+}catch(e){/* probar siguiente fecha */}
+}
+return{value:null,label:'sin datos satelitales (cobertura nubosa o sin pase reciente)'};
+}
+
+function classifyNdviColor(r,g,b,a){
+if(a<30)return{value:null,label:'sin datos'};
+if(r<30&&g<30&&b<30)return{value:null,label:'sin datos'};
+if(r>150&&r<200&&g<120&&b<80)return{value:-0.05,label:'muy bajo (suelo desnudo o muerto)'};
+if(r>200&&g>180&&b<140)return{value:0.2,label:'bajo (vegetación estresada)'};
+if(g>r&&r>140&&g>180)return{value:0.4,label:'moderado (vegetación regular)'};
+if(g>r&&r<140&&g>140)return{value:0.6,label:'bueno (vegetación saludable)'};
+if(g>r&&r<60&&g>120)return{value:0.8,label:'muy vigoroso'};
+const v=(g-r)/((g+r)||1);
+return{value:v,label:v>0.3?'vegetación buena':v>0.1?'moderada':'pobre'};
+}
+
+function onGridChange(){
+const v=document.getElementById('gridSize').value;
+const inp=document.getElementById('gridCustom');
+const hint=document.getElementById('gridCustomHint');
+if(v==='custom'){inp.classList.remove('hidden');hint.classList.remove('hidden');updateGridHint()}
+else{inp.classList.add('hidden');hint.classList.add('hidden')}
+}
+function updateGridHint(){
+const n=parseInt(document.getElementById('gridCustom').value)||1;
+document.getElementById('gridCustomHint').textContent=`= ${n}×${n} = ${n*n} cuadrantes`;
+}
+document.addEventListener('DOMContentLoaded',()=>{const inp=document.getElementById('gridCustom');if(inp)inp.addEventListener('input',updateGridHint)});
+
+async function analyzeField(){
+if(!fieldPolygon){alert('Marcá el campo primero.');return}
+const gridSel=document.getElementById('gridSize').value;
+let grid;
+if(gridSel==='custom'){
+grid=parseInt(document.getElementById('gridCustom').value);
+if(isNaN(grid)||grid<1){alert('Ingresá un número válido (1-15) en la grilla personalizada.');return}
+if(grid>15){if(!confirm(`Grilla ${grid}×${grid} = ${grid*grid} cuadrantes. Va a tardar varios minutos y consume muchas peticiones IA. ¿Seguir?`))return}
+}else{
+grid=parseInt(gridSel);
+}
+const crop=document.getElementById('cropType').value;
+const b=fieldPolygon.getBounds();
+const minLat=b.getSouth(),maxLat=b.getNorth(),minLon=b.getWest(),maxLon=b.getEast();
+const dLat=(maxLat-minLat)/grid,dLon=(maxLon-minLon)/grid;
+quadrantLayers.forEach(l=>{if(l.rect)map.removeLayer(l.rect);if(l.lbl)map.removeLayer(l.lbl)});quadrantLayers=[];
+const out=document.getElementById('fieldResult');
+out.innerHTML='<div class="text-emerald-700 pulse-dot text-sm">🔬 Leyendo NDVI por cuadrante...</div>';
+const quads=[];
+for(let i=0;i<grid;i++){
+for(let j=0;j<grid;j++){
+const sw=[minLat+i*dLat,minLon+j*dLon];
+const ne=[minLat+(i+1)*dLat,minLon+(j+1)*dLon];
+const ctr=[(sw[0]+ne[0])/2,(sw[1]+ne[1])/2];
+if(!pointInPolygon(ctr,drawnPoints))continue;
+const ndvi=await readNdviAt(ctr[0],ctr[1]);
+const row=grid-i,col=j+1;
+const id=`Q${row}-${col}`;
+quads.push({id,row,col,centerLat:ctr[0],centerLon:ctr[1],ndvi});
+const v=ndvi.value;
+const col_=ndviToColor(v);
+const rect=L.rectangle([sw,ne],{color:col_,weight:2,fillOpacity:0.25,fillColor:col_}).addTo(map);
+const lbl=L.marker(ctr,{icon:L.divIcon({html:`<div id="lbl-${id}" style="background:white;padding:2px 6px;border-radius:4px;border:2px solid ${col_};font-size:11px;font-weight:bold;white-space:nowrap">${id}</div>`,className:'',iconSize:[50,22]})}).addTo(map);
+quadrantLayers.push({rect,lbl,id});
+}
+}
+if(quads.length===0){out.innerHTML='<p class="text-red-600 text-sm">No se pudo dividir el campo. Probá una grilla más pequeña.</p>';return}
+out.innerHTML='<div class="text-emerald-700 pulse-dot text-sm">🤖 Consultando al agrónomo IA con datos de '+quads.length+' cuadrantes...</div>';
+await sendFieldToAI(quads,crop);
+}
+
+function renderQuadrantsBasic(quads){
+return `<div class="mt-2 grid md:grid-cols-2 gap-2">${quads.map(q=>`<div class="bg-white border rounded p-2 text-sm"><b>${q.id}</b> (${q.centerLat.toFixed(4)}, ${q.centerLon.toFixed(4)})<br>NDVI: ${q.ndvi.value?.toFixed(2)||'N/D'} · ${q.ndvi.label}</div>`).join('')}</div>`;
+}
+
+async function sendFieldToAI(quads,crop){
+const out=document.getElementById('fieldResult');
+const first=quads[0];
+const date=document.getElementById('dateInput').value;
+const month=parseInt(date.split('-')[1]);
+const isS=first.centerLat<0;
+let season;
+if(isS){if([12,1,2].includes(month))season='verano';else if([3,4,5].includes(month))season='otoño';else if([6,7,8].includes(month))season='invierno';else season='primavera'}
+else{if([6,7,8].includes(month))season='verano';else if([9,10,11].includes(month))season='otoño';else if([12,1,2].includes(month))season='invierno';else season='primavera'}
+const country=isS&&first.centerLat>-35&&first.centerLat<-30&&first.centerLon>-58.5&&first.centerLon<-53?'Uruguay':isS&&first.centerLat<-21?'Argentina/Cono Sur':isS?'Sudamérica':'región templada';
+try{
+const res=await fetch('/api/field',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
+quads:quads.map(q=>({id:q.id,row:q.row,col:q.col,centerLat:q.centerLat,centerLon:q.centerLon,ndvi:q.ndvi})),
+crop,lat:first.centerLat,lon:first.centerLon,season,date,country
+})});
+if(!res.ok){out.innerHTML=await backendErrorHtml(res);return}
+const{data}=await res.json();
+renderFieldAI(data,quads);
+}catch(e){out.innerHTML=`<p class="text-red-600 text-sm">❌ ${e.message}</p>`}
+}
+
+function renderFieldAI(ai,quads){
+const qm={};quads.forEach(q=>qm[q.id]=q);
+// Recolorear cada cuadrante en el mapa según el puntaje de salud que tiró la IA
+ai.cuadrantes.forEach(c=>{
+const lyr=quadrantLayers.find(l=>l.id===c.id);
+if(!lyr)return;
+const sc=typeof c.salud_score==='number'?c.salud_score:null;
+const newColor=scoreToColor(sc);
+lyr.rect.setStyle({color:newColor,fillColor:newColor,fillOpacity:0.4,weight:3});
+// Actualizar etiqueta (auto usa 'lbl-', manual usa 'mqlbl-')
+const lblEl=document.getElementById('lbl-'+c.id)||document.getElementById('mqlbl-'+c.id);
+if(lblEl){lblEl.style.borderColor=newColor;lblEl.style.background=newColor;lblEl.style.color='white';lblEl.innerHTML=`${c.id} · ${sc!==null?sc:'?'}`}
+});
+let html=`<div class="bg-white border-2 border-emerald-300 rounded-xl p-4">
+<h4 class="font-bold text-emerald-900 text-lg mb-2">📋 Diagnóstico general del campo</h4>
+<p class="text-sm text-gray-700 mb-3 bg-emerald-50 p-3 rounded">${ai.resumen_general}</p>
+<div class="mb-3 p-2 bg-gray-50 rounded text-xs">
+<b class="text-gray-700">Leyenda de colores (puntaje salud):</b>
+<div class="flex flex-wrap gap-2 mt-1">
+<span class="px-2 py-1 rounded text-white text-xs" style="background:#dc2626">0-40 Bajo</span>
+<span class="px-2 py-1 rounded text-white text-xs" style="background:#eab308">40-70 Medio</span>
+<span class="px-2 py-1 rounded text-white text-xs" style="background:#16a34a">70-100 Alto</span>
+</div>
+</div>
+<h4 class="font-bold text-gray-800 mb-2">🔬 Recomendaciones por cuadrante</h4>
+<div class="grid md:grid-cols-2 gap-2">`;
+// Ordenar por urgencia (alta primero) para que se vea lo crítico arriba
+const sortedCuads=[...ai.cuadrantes].sort((a,b)=>{
+const oa={'alta':0,'media':1,'baja':2}[a.urgencia]??1;
+const ob={'alta':0,'media':1,'baja':2}[b.urgencia]??1;
+return oa-ob;
+});
+const uc={'alta':'#dc2626','media':'#f59e0b','baja':'#16a34a'};
+sortedCuads.forEach(c=>{
+const q=qm[c.id];const ucol=uc[c.urgencia]||'#6b7280';
+const ndvi=q?.ndvi?.value;
+const sc=c.salud_score;
+const scCol=scoreToColor(sc);
+html+=`<div class="bg-gray-50 border-l-4 rounded p-3 text-sm" style="border-color:${scCol}">
+<div class="flex justify-between items-start mb-1">
+<b class="text-gray-900">${c.id} <span class="text-xs text-gray-500 font-normal">· salud ${sc??'?'}/100 (${statusLabel(sc)})</span></b>
+<span class="text-xs px-2 py-0.5 rounded text-white font-bold" style="background:${ucol}">${c.urgencia||'media'}</span>
+</div>
+<div class="text-xs text-gray-500 mb-1">NDVI medido: ${ndvi!=null?ndvi.toFixed(2):'N/D'}</div>
+<div class="text-xs text-gray-700 mb-1"><b>Estado:</b> ${c.estado}</div>
+<div class="text-xs text-gray-900"><b>👉 Acción:</b> ${c.accion}</div>
+</div>`;
+});
+html+='</div></div>';
+document.getElementById('fieldResult').innerHTML=html;
+}
+
+window.addEventListener('DOMContentLoaded',()=>{
+// Nada que cargar — todas las claves viven en el backend
+});
+
+// ============ GUARDAR / CARGAR POTREROS ============
+function savePotreros(){
+if(manualQuadrants.length===0){alert('No hay potreros para guardar.');return}
+const nombre=prompt('¿Con qué nombre guardás este campo?',`Mi campo ${new Date().toLocaleDateString('es-UY')}`);
+if(!nombre)return;
+const data=manualQuadrants.map(q=>({id:q.id,name:q.name,points:q.points,centerLat:q.centerLat,centerLon:q.centerLon}));
+const saved=JSON.parse(localStorage.getItem('agroPotreros')||'[]');
+saved.push({nombre,fecha:new Date().toISOString(),potreros:data});
+localStorage.setItem('agroPotreros',JSON.stringify(saved));
+document.getElementById('manualHelp').innerHTML=`💾 <b>Campo "${escapeHtml(nombre)}" guardado</b> con ${data.length} potrero(s). Podés cargarlo desde "Ver potreros guardados".`;
+renderSavedPotreros();
+}
+
+function toggleSavedPotreros(){
+const box=document.getElementById('savedPotrerosBox');
+if(box.classList.contains('hidden')){box.classList.remove('hidden');renderSavedPotreros()}
+else box.classList.add('hidden');
+}
+
+function renderSavedPotreros(){
+const box=document.getElementById('savedPotrerosBox');
+const saved=JSON.parse(localStorage.getItem('agroPotreros')||'[]');
+if(saved.length===0){box.innerHTML='<p class="text-xs text-gray-500">No tenés campos guardados todavía.</p>';return}
+box.innerHTML=`<p class="text-xs font-semibold text-indigo-900 mb-2">Campos guardados (${saved.length}):</p>`+
+saved.map((c,i)=>`<div class="flex items-center justify-between bg-white border rounded p-2 mb-1 text-xs">
+<div><b class="text-indigo-800">${escapeHtml(c.nombre)}</b> <span class="text-gray-500">· ${c.potreros.length} potrero(s) · ${new Date(c.fecha).toLocaleDateString('es-UY')}</span></div>
+<div class="flex gap-1">
+<button onclick="loadPotreros(${i})" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700">📂 Cargar</button>
+<button onclick="deleteSavedCampo(${i})" class="bg-red-400 text-white px-2 py-1 rounded hover:bg-red-500">🗑️</button>
+</div></div>`).join('');
+}
+
+function loadPotreros(idx){
+if(!window.mapInited){switchTab('sat');setTimeout(()=>loadPotreros(idx),600);return}
+const saved=JSON.parse(localStorage.getItem('agroPotreros')||'[]');
+const campo=saved[idx];if(!campo)return;
+clearManualQuadrants();
+document.getElementById('quadMode').value='manual';
+toggleQuadrantMode();
+const allPts=[];
+campo.potreros.forEach(q=>{
+const poly=L.polygon(q.points,{color:'#7c3aed',weight:2,fillOpacity:0.15,fillColor:'#7c3aed'}).addTo(map);
+const ctr=poly.getBounds().getCenter();
+const shortLabel=q.name.length>22?q.name.substring(0,22)+'…':q.name;
+const lbl=L.marker([ctr.lat,ctr.lng],{icon:L.divIcon({html:`<div id="mqlbl-${q.id}" style="background:white;padding:3px 8px;border-radius:5px;border:2px solid #7c3aed;font-size:11px;font-weight:bold;white-space:nowrap;color:#7c3aed;max-width:160px;overflow:hidden">${q.id} ${escapeHtml(shortLabel)}</div>`,className:'',iconSize:[170,24]})}).addTo(map);
+manualQuadrants.push({id:q.id,name:q.name,points:q.points,polygon:poly,label:lbl,centerLat:ctr.lat,centerLon:ctr.lng});
+allPts.push(...q.points);
+});
+if(allPts.length>0)map.fitBounds(L.latLngBounds(allPts),{padding:[30,30]});
+document.getElementById('analyzeManualBtn').classList.remove('hidden');
+document.getElementById('savePotrerosBtn').classList.remove('hidden');
+document.getElementById('manualHelp').innerHTML=`✅ Campo <b>${escapeHtml(campo.nombre)}</b> cargado con ${campo.potreros.length} potrero(s).`;
+updateManualList();
+document.getElementById('savedPotrerosBox').classList.add('hidden');
+}
+
+function deleteSavedCampo(idx){
+if(!confirm('¿Borrar este campo guardado?'))return;
+const saved=JSON.parse(localStorage.getItem('agroPotreros')||'[]');
+saved.splice(idx,1);
+localStorage.setItem('agroPotreros',JSON.stringify(saved));
+renderSavedPotreros();
+}
+
+// ============ CHAT IA AGRÓNOMO ============
+const chatHistory=[];
+
+async function sendChat(){
+const inp=document.getElementById('chatInput');
+const msg=inp.value.trim();
+if(!msg)return;
+const box=document.getElementById('chatBox');
+inp.value='';
+box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 justify-end items-start"><div class="bg-blue-600 text-white rounded-xl px-3 py-2 text-sm" style="max-width:85%">${escapeHtml(msg)}</div><div class="text-xl leading-none mt-1">👤</div></div>`);
+box.scrollTop=box.scrollHeight;
+const loadId='cl-'+Date.now();
+box.insertAdjacentHTML('beforeend',`<div id="${loadId}" class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-500 pulse-dot">Pensando...</div></div>`);
+box.scrollTop=box.scrollHeight;
+chatHistory.push({role:'user',content:msg});
+try{
+const res=await fetch('/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({messages:chatHistory})});
+document.getElementById(loadId)?.remove();
+if(!res.ok){const errHtml=await backendErrorHtml(res);box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div style="max-width:85%">${errHtml}</div></div>`);box.scrollTop=box.scrollHeight;return;}
+const{text}=await res.json();
+chatHistory.push({role:'assistant',content:text});
+box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-800 whitespace-pre-wrap" style="max-width:85%">${escapeHtml(text)}</div></div>`);
+box.scrollTop=box.scrollHeight;
+}catch(e){
+document.getElementById(loadId)?.remove();
+box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-700" style="max-width:85%">❌ ${escapeHtml(e.message)}</div></div>`);
+box.scrollTop=box.scrollHeight;
+}
+}
+
+function quickChat(msg){
+document.getElementById('chatInput').value=msg;
+sendChat();
+}
+</script>
+</body>
+</html>
