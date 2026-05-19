@@ -74,8 +74,16 @@ async function checkAuth(req, res, next) {
   if (!token) return next();
 
   try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return next();
+    // Llamada directa a la API REST de Supabase (evita ByteString error de auth-js/undici)
+    const authRes = await nodeFetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        'apikey': process.env.SUPABASE_SECRET_KEY,
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!authRes.ok) return next();
+    const user = await authRes.json();
+    if (!user || !user.id) return next();
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -166,15 +174,20 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'email, password y nombre son requeridos' });
     }
 
-    const { data, error } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true
+    // Llamada directa a la API REST de Supabase Admin (evita ByteString error de auth-js/undici)
+    const authRes = await nodeFetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': process.env.SUPABASE_SECRET_KEY,
+        'Authorization': `Bearer ${process.env.SUPABASE_SECRET_KEY}`
+      },
+      body: JSON.stringify({ email, password, email_confirm: true })
     });
+    const authData = await authRes.json();
+    if (!authRes.ok) return res.status(400).json({ error: authData.msg || authData.message || 'Error creando usuario' });
 
-    if (error) return res.status(400).json({ error: error.message });
-
-    const user = data.user;
+    const user = authData;
 
     const { error: profileError } = await supabase
       .from('profiles')
@@ -206,11 +219,24 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ error: 'email y password son requeridos' });
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return res.status(401).json({ error: error.message });
+    // Llamada directa a la API REST de Supabase (evita ByteString error de auth-js/undici)
+    const authRes = await nodeFetch(
+      `${process.env.SUPABASE_URL}/auth/v1/token?grant_type=password`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': process.env.SUPABASE_SECRET_KEY,
+          'Authorization': `Bearer ${process.env.SUPABASE_SECRET_KEY}`
+        },
+        body: JSON.stringify({ email, password })
+      }
+    );
+    const authData = await authRes.json();
+    if (!authRes.ok) return res.status(401).json({ error: authData.error_description || authData.msg || 'Credenciales incorrectas' });
 
-    const session = data.session;
-    const userId  = data.user.id;
+    const session = authData;
+    const userId  = authData.user?.id;
 
     const { data: profile } = await supabase
       .from('profiles')
