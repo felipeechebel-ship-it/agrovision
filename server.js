@@ -1,11 +1,29 @@
 require('dotenv').config();
 
-// Reemplazar fetch nativo de Node 20 (undici) con node-fetch para evitar
-// el error "Cannot convert argument to a ByteString" con caracteres no-ASCII.
 const nodeFetch = require('node-fetch');
-global.fetch   = nodeFetch;
-global.Headers = nodeFetch.Headers;
-global.Request = nodeFetch.Request;
+
+// Fetch sanitizador: limpia headers para evitar ByteString errors con chars > 255
+function makeSafeFetch(baseFetch) {
+  return function safeFetch(url, options = {}) {
+    if (options && options.headers) {
+      const clean = {};
+      const src = options.headers instanceof baseFetch.Headers
+        ? Object.fromEntries(options.headers.entries())
+        : options.headers;
+      for (const [k, v] of Object.entries(src)) {
+        clean[k] = String(v).replace(/[^\x00-\xFF]/g, '');
+      }
+      options = { ...options, headers: clean };
+    }
+    return baseFetch(url, options);
+  };
+}
+const safeFetch = makeSafeFetch(nodeFetch);
+
+// Reemplazar fetch global de Node 20 (undici) con nuestra versión segura
+global.fetch    = safeFetch;
+global.Headers  = nodeFetch.Headers;
+global.Request  = nodeFetch.Request;
 global.Response = nodeFetch.Response;
 
 const express = require('express');
@@ -25,7 +43,10 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SECRET_KEY,
-  { realtime: { transport: ws } }
+  {
+    global: { fetch: safeFetch },
+    realtime: { transport: ws }
+  }
 );
 
 // 30 requests por minuto por IP
