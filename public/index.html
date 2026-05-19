@@ -540,10 +540,8 @@ ${h.thumbnail?`<img src="${h.thumbnail}" class="w-12 h-12 rounded object-cover f
 
 function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
-async function loadWeather(){
+async function fetchWeatherCoords(lat,lon){
 try{
-let lat=-32.5,lon=-56.0;
-if(window.mapInited&&map){const c=map.getCenter();lat=c.lat.toFixed(4);lon=c.lng.toFixed(4);}
 const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,precipitation,windspeed_10m&timezone=America%2FMontevideo`;
 const r=await fetch(url);const d=await r.json();
 const cur=d.current;
@@ -553,6 +551,24 @@ document.getElementById('wPrecip').textContent=`🌧️ ${cur.precipitation}mm`;
 document.getElementById('wWind').textContent=`💨 ${cur.windspeed_10m}km/h`;
 document.getElementById('weatherWidget').classList.remove('hidden');
 }catch(e){/* silencioso */}
+}
+
+async function loadWeather(){
+if(navigator.geolocation){
+navigator.geolocation.getCurrentPosition(
+pos=>fetchWeatherCoords(pos.coords.latitude.toFixed(4),pos.coords.longitude.toFixed(4)),
+()=>{
+// Si el usuario niega el permiso, usar centro del mapa o Uruguay
+let lat=-32.5,lon=-56.0;
+if(window.mapInited&&map){const c=map.getCenter();lat=c.lat.toFixed(4);lon=c.lng.toFixed(4);}
+fetchWeatherCoords(lat,lon);
+},{timeout:5000}
+);
+}else{
+let lat=-32.5,lon=-56.0;
+if(window.mapInited&&map){const c=map.getCenter();lat=c.lat.toFixed(4);lon=c.lng.toFixed(4);}
+fetchWeatherCoords(lat,lon);
+}
 }
 
 function toggleTag(btn,tag){
