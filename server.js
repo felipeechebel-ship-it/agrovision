@@ -426,70 +426,106 @@ app.get('/api/planet/tile/:z/:x/:y', async (req, res) => {
   }
 });
 
-// ─── MERCADO: precios commodity (Yahoo Finance + fallback Gemini) ─────────────
-const YF_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Accept': 'application/json,text/html,*/*',
-  'Accept-Language': 'es-UY,es;q=0.9,en;q=0.8',
-  'Referer': 'https://finance.yahoo.com/',
-};
+// ─── MERCADO: precios commodity ───────────────────────────────────────────────
 
+// Stooq.com — CSV libre, confiable, sin bloqueos
+// Símbolo stooq: zs.f=soja, zc.f=maíz, zw.f=trigo, le.f=vacuno
+async function fetchStooqPrice(sym, toUsdTon, unit, name, icon) {
+  try {
+    const r = await nodeFetch(
+      `https://stooq.com/q/l/?s=${sym}&f=sd2t2ohlcv&h&e=csv`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000 }
+    );
+    if (!r.ok) return null;
+    const text = await r.text();
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) return null;
+    const cols = lines[1].split(',');
+    const close = parseFloat(cols[6]);
+    if (!close || isNaN(close)) return null;
+    const prevClose = parseFloat(cols[3]) || close; // Open como referencia de día anterior
+    const usdTon = toUsdTon(close);
+    const usdTonP = toUsdTon(prevClose);
+    const change = ((usdTon - usdTonP) / usdTonP * 100).toFixed(2);
+    return { name, icon, price: usdTon.toFixed(2), unit, change, up: parseFloat(change) >= 0, src: 'CBOT vía Stooq' };
+  } catch { return null; }
+}
+
+// Yahoo Finance como segundo intento
 async function fetchYahooPrice(sym, toTon, unit, name, icon) {
   try {
     const r = await nodeFetch(
-      `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`,
-      { headers: YF_HEADERS, timeout: 9000 }
+      `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=2d`,
+      { headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+        'Referer': 'https://finance.yahoo.com'
+      }, timeout: 9000 }
     );
     if (!r.ok) return null;
     const d = await r.json();
     const meta = d.chart?.result?.[0]?.meta || {};
-    const cur  = meta.currency || 'USD';
-    const raw  = meta.regularMarketPrice;
-    const prev = meta.previousClose;
+    const cur = meta.currency || 'USD';
+    const raw = meta.regularMarketPrice;
+    const prev = meta.previousClose || raw;
     if (!raw) return null;
     const usd  = cur === 'USX' ? raw / 100 : raw;
-    const usdP = (cur === 'USX' ? prev / 100 : prev) || usd;
+    const usdP = cur === 'USX' ? prev / 100 : prev;
     const converted = toTon(usd);
-    const change    = ((usd - usdP) / usdP * 100).toFixed(2);
+    const change = ((usd - usdP) / usdP * 100).toFixed(2);
     return { name, icon, price: converted.toFixed(2), unit, change, up: parseFloat(change) >= 0, src: 'CBOT' };
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
+
+// Precios de referencia estáticos como último recurso (actualizados aprox. mensualmente)
+const STATIC_REF = [
+  { name:'Soja',   icon:'🌱', price:'370.00', unit:'USD/tn', change:'0.00', up:true, src:'Referencia orientativa' },
+  { name:'Maíz',   icon:'🌽', price:'175.00', unit:'USD/tn', change:'0.00', up:true, src:'Referencia orientativa' },
+  { name:'Trigo',  icon:'🌾', price:'215.00', unit:'USD/tn', change:'0.00', up:true, src:'Referencia orientativa' },
+  { name:'Vacuno', icon:'🐄', price:'1420.00',unit:'USD/tn', change:'0.00', up:true, src:'Referencia orientativa' },
+];
 
 app.get('/api/market', async (req, res) => {
   try {
     const commodities = [
-      { sym: 'ZS=F', name: 'Soja',   icon: '🌱', toTon: b => b * 36.744, unit: 'USD/tn' },
-      { sym: 'ZC=F', name: 'Maíz',   icon: '🌽', toTon: b => b * 39.368, unit: 'USD/tn' },
-      { sym: 'ZW=F', name: 'Trigo',  icon: '🌾', toTon: b => b * 36.744, unit: 'USD/tn' },
-      { sym: 'LE=F', name: 'Vacuno', icon: '🐄', toTon: b => (b / 2.2046) * 1000, unit: 'USD/tn' },
+      { sym:'zs.f', ySym:'ZS=F', name:'Soja',   icon:'🌱', stooq: c => (c/100)*36.744,  yf: b => b*36.744,          unit:'USD/tn' },
+      { sym:'zc.f', ySym:'ZC=F', name:'Maíz',   icon:'🌽', stooq: c => (c/100)*39.368,  yf: b => b*39.368,          unit:'USD/tn' },
+      { sym:'zw.f', ySym:'ZW=F', name:'Trigo',  icon:'🌾', stooq: c => (c/100)*36.744,  yf: b => b*36.744,          unit:'USD/tn' },
+      { sym:'le.f', ySym:'LE=F', name:'Vacuno', icon:'🐄', stooq: c => (c/100)*2204.62, yf: b => (b/2.2046)*1000,   unit:'USD/tn' },
     ];
 
-    // Intentar Yahoo Finance en paralelo
-    const results = await Promise.all(
-      commodities.map(c => fetchYahooPrice(c.sym, c.toTon, c.unit, c.name, c.icon))
+    // 1º intento: Stooq (más confiable desde servidores cloud)
+    const stooqResults = await Promise.all(
+      commodities.map(c => fetchStooqPrice(c.sym, c.stooq, c.unit, c.name, c.icon))
     );
+    let prices = stooqResults.map((r, i) => r || null);
 
-    let prices = results.map((r, i) => r || { ...commodities[i], price: null, change: '0.00', up: true, src: null });
+    // 2º intento: Yahoo Finance para los que fallaron
+    const missing = prices.map((p, i) => p === null ? i : -1).filter(i => i >= 0);
+    if (missing.length) {
+      const yfResults = await Promise.all(
+        missing.map(i => fetchYahooPrice(commodities[i].ySym, commodities[i].yf, commodities[i].unit, commodities[i].name, commodities[i].icon))
+      );
+      missing.forEach((idx, j) => { if (yfResults[j]) prices[idx] = yfResults[j]; });
+    }
 
-    // Si todos fallaron → fallback con Gemini (estimaciones aproximadas)
-    if (prices.every(p => !p.price)) {
+    // 3º intento: Gemini solo si hay más de 2 N/D
+    const stillMissing = prices.filter(p => !p);
+    if (stillMissing.length >= 3) {
       try {
         const fallback = await gemini([{ text:
-          `Dá precios actuales aproximados de commodities agrícolas internacionales en el mercado CBOT. Respondé SOLO en JSON puro:
-{"soja_usd_tn":0,"maiz_usd_tn":0,"trigo_usd_tn":0,"vacuno_usd_tn":0}
-Usá valores de referencia recientes. Sé lo más preciso posible.`
-        }], 200, true);
-        const est = JSON.parse(fallback.replace(/```json\n?|```/g, '').trim());
-        prices = [
-          { name:'Soja',   icon:'🌱', price: est.soja_usd_tn?.toFixed(2)||null,   unit:'USD/tn', change:'0.00', up:true, src:'IA estimado' },
-          { name:'Maíz',   icon:'🌽', price: est.maiz_usd_tn?.toFixed(2)||null,   unit:'USD/tn', change:'0.00', up:true, src:'IA estimado' },
-          { name:'Trigo',  icon:'🌾', price: est.trigo_usd_tn?.toFixed(2)||null,  unit:'USD/tn', change:'0.00', up:true, src:'IA estimado' },
-          { name:'Vacuno', icon:'🐄', price: est.vacuno_usd_tn?.toFixed(2)||null, unit:'USD/tn', change:'0.00', up:true, src:'IA estimado' },
-        ];
-      } catch { /* fallback falló también, quedan null */ }
+          `Precios actuales aproximados CBOT. Respondé SOLO JSON:\n{"soja_usd_tn":0,"maiz_usd_tn":0,"trigo_usd_tn":0,"vacuno_usd_tn":0}`
+        }], 150, true);
+        const est = JSON.parse(fallback.replace(/```json\n?|```/g,'').trim());
+        if (!prices[0]) prices[0] = { name:'Soja',   icon:'🌱', price: String(est.soja_usd_tn||''),   unit:'USD/tn', change:'0.00', up:true, src:'IA estimado' };
+        if (!prices[1]) prices[1] = { name:'Maíz',   icon:'🌽', price: String(est.maiz_usd_tn||''),   unit:'USD/tn', change:'0.00', up:true, src:'IA estimado' };
+        if (!prices[2]) prices[2] = { name:'Trigo',  icon:'🌾', price: String(est.trigo_usd_tn||''),  unit:'USD/tn', change:'0.00', up:true, src:'IA estimado' };
+        if (!prices[3]) prices[3] = { name:'Vacuno', icon:'🐄', price: String(est.vacuno_usd_tn||''), unit:'USD/tn', change:'0.00', up:true, src:'IA estimado' };
+      } catch { /* quota agotada */ }
     }
+
+    // Último recurso: precios de referencia estáticos para los que siguen sin dato
+    prices = prices.map((p, i) => p || STATIC_REF[i]);
 
     res.json({ prices, updated: new Date().toISOString() });
   } catch (e) { res.status(500).json({ error: e.message }); }

@@ -750,7 +750,7 @@ body *{visibility:hidden}
 <div class="border-t border-gray-100 pt-4 mt-4">
   <div class="flex flex-wrap items-center gap-2 mb-3">
     <h3 class="font-semibold text-gray-700 text-sm">🇺🇾 Precios locales Uruguay</h3>
-    <button onclick="loadMarketUY()" id="btnMarketUY" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium">🤖 Ver precios locales</button>
+    <button onclick="loadMarketUY()" id="btnMarketUY" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium">Ver precios locales</button>
     <span class="text-xs text-gray-400 italic">Estimación orientativa por IA</span>
   </div>
   <div id="marketUYCards" class="hidden grid grid-cols-2 md:grid-cols-3 gap-2"></div>
@@ -2910,7 +2910,7 @@ async function loadMarketUY(){
   const btn=document.getElementById('btnMarketUY');
   const out=document.getElementById('marketUYCards');
   const src=document.getElementById('marketUYSrc');
-  btn.disabled=true;btn.textContent='⏳ Consultando...';
+  btn.disabled=true;btn.textContent='Consultando...';
   try{
     const r=await fetch('/api/market/uy');
     const d=await r.json();
@@ -2928,10 +2928,14 @@ async function loadMarketUY(){
     src.textContent=`${d.src} · TC ref: $${dd.tipo_cambio_ref}/USD`;
     out.classList.remove('hidden');src.classList.remove('hidden');
   }catch(e){
-    out.innerHTML=`<div class="col-span-3 text-center text-red-500 text-sm py-4">Error: ${e.message}</div>`;
+    const isQuota = e.message==='IA_QUOTA'||e.message?.toLowerCase().includes('quota');
+    const msg = isQuota
+      ? 'El servicio de precios IA está temporalmente saturado. Los precios CBOT arriba siguen disponibles.'
+      : 'No se pudo obtener precios locales. Intentá de nuevo en unos minutos.';
+    out.innerHTML=`<div class="col-span-3 text-center text-amber-700 bg-amber-50 border border-amber-200 rounded-lg text-xs py-3 px-4">${msg}</div>`;
     out.classList.remove('hidden');
   }
-  btn.disabled=false;btn.textContent='🔄 Actualizar';
+  btn.disabled=false;btn.textContent='Actualizar';
 }
 
 // ═══════════════════════════════════════════════════════════
