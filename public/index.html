@@ -58,6 +58,10 @@ body *{visibility:hidden}
 .print-logo{display:block!important}
 }
 .print-logo{display:none}
+/* Botón editar mensaje: siempre visible en mobile (sin hover) */
+@media(hover:none){
+  .group button[onclick*="editChatMessage"]{opacity:.5!important}
+}
 /* Mobile: mapa más chico, header compacto */
 @media(max-width:640px){
   #map{height:300px}
@@ -2015,6 +2019,23 @@ function saveChatSessions(sessions){
 }
 function genChatId(){return 'chat_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)}
 
+// Renderiza un mensaje individual (con botón editar en mensajes de usuario)
+function renderMsgHtml(m, idx){
+  if(m.role==='user'){
+    return`<div class="flex gap-2 justify-end items-start group" data-msg-idx="${idx}">
+<div class="flex flex-col items-end gap-1" style="max-width:85%">
+  <div class="bg-blue-600 text-white rounded-xl px-3 py-2 text-sm">${escapeHtml(m.content)}</div>
+  <button onclick="editChatMessage(${idx})" class="text-xs text-blue-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1" style="font-size:11px">✏️ Editar</button>
+</div>
+<div class="text-xl leading-none mt-1">👤</div>
+</div>`;
+  }
+  return`<div class="flex gap-2 items-start" data-msg-idx="${idx}">
+<div class="text-2xl leading-none mt-1">🌱</div>
+<div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-800 whitespace-pre-wrap" style="max-width:85%">${escapeHtml(m.content)}</div>
+</div>`;
+}
+
 function initChat(){
   let sessions=getChatSessions();
   if(!sessions.length){
@@ -2034,10 +2055,14 @@ function renderChatSessionsList(){
   container.innerHTML=sessions.map(s=>{
     const isActive=s.id===activeChatId;
     const fecha=new Date(s.created).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit'});
-    return`<button onclick="loadChatSession('${s.id}')" class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition ${isActive?'bg-emerald-600 text-white border-emerald-600 font-semibold':'bg-white text-gray-700 border-gray-300 hover:border-emerald-400'}">
-<span>💬</span><span class="max-w-28 truncate">${escapeHtml(s.title)}</span><span class="opacity-60 text-xs">${fecha}</span>
-${sessions.length>1&&!isActive?`<button onclick="event.stopPropagation();deleteChatSession('${s.id}')" class="ml-1 text-gray-400 hover:text-red-500 leading-none" title="Eliminar">×</button>`:''}
-</button>`;
+    const base=isActive?'bg-emerald-600 text-white border-emerald-600 font-semibold':'bg-white text-gray-700 border-gray-300 hover:border-emerald-400';
+    return`<div class="flex-shrink-0 flex items-center rounded-lg border overflow-hidden ${base}" style="max-width:180px">
+<button onclick="loadChatSession('${s.id}')" class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs flex-1 min-w-0">
+  <span>💬</span><span class="truncate">${escapeHtml(s.title)}</span><span class="opacity-60 flex-shrink-0">${fecha}</span>
+</button>
+<button onclick="renameChatSession('${s.id}')" class="${isActive?'text-white/70 hover:text-white':'text-gray-400 hover:text-emerald-600'} px-1.5 py-1.5 text-xs" title="Renombrar">✏️</button>
+${sessions.length>1?`<button onclick="deleteChatSession('${s.id}')" class="${isActive?'text-white/70 hover:text-white':'text-gray-400 hover:text-red-500'} px-1.5 py-1.5 text-sm leading-none" title="Eliminar">×</button>`:''}
+</div>`;
   }).join('');
 }
 
@@ -2049,13 +2074,9 @@ function loadChatSession(id){
   chatHistory=s.messages.slice();
   const box=document.getElementById('chatBox');
   if(!box)return;
-  // Render mensajes guardados
   const WELCOME=`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-800" style="max-width:85%">¡Buenas! Soy tu agrónomo IA especializado en el campo uruguayo. Consultame lo que quieras: pasturas, hacienda, fertilizantes, sanidad, suelos, clima... ¿En qué te puedo dar una mano?</div></div>`;
   if(!s.messages.length){box.innerHTML=WELCOME;renderChatSessionsList();return}
-  box.innerHTML=s.messages.map(m=>{
-    if(m.role==='user')return`<div class="flex gap-2 justify-end items-start"><div class="bg-blue-600 text-white rounded-xl px-3 py-2 text-sm" style="max-width:85%">${escapeHtml(m.content)}</div><div class="text-xl leading-none mt-1">👤</div></div>`;
-    return`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-800 whitespace-pre-wrap" style="max-width:85%">${escapeHtml(m.content)}</div></div>`;
-  }).join('');
+  box.innerHTML=s.messages.map((m,i)=>renderMsgHtml(m,i)).join('');
   box.scrollTop=box.scrollHeight;
   renderChatSessionsList();
 }
@@ -2064,7 +2085,6 @@ function newChat(){
   const sessions=getChatSessions();
   const id=genChatId();
   sessions.unshift({id,title:'Nueva consulta',created:Date.now(),messages:[]});
-  // Limitar a 20 chats guardados
   if(sessions.length>20)sessions.splice(20);
   saveChatSessions(sessions);
   loadChatSession(id);
@@ -2076,6 +2096,42 @@ function deleteChatSession(id){
   saveChatSessions(sessions);
   if(activeChatId===id)loadChatSession(sessions[0].id);
   else renderChatSessionsList();
+}
+
+function renameChatSession(id){
+  const sessions=getChatSessions();
+  const s=sessions.find(x=>x.id===id);
+  if(!s)return;
+  const nuevo=prompt('Nuevo nombre para este chat:',s.title);
+  if(!nuevo||!nuevo.trim())return;
+  s.title=nuevo.trim().slice(0,40);
+  saveChatSessions(sessions);
+  renderChatSessionsList();
+}
+
+// Editar un mensaje del usuario: pone el texto en el input y borra todo lo que vino después
+function editChatMessage(msgIdx){
+  const sessions=getChatSessions();
+  const sIdx=sessions.findIndex(s=>s.id===activeChatId);
+  if(sIdx<0)return;
+  const msgs=sessions[sIdx].messages;
+  if(msgIdx>=msgs.length||msgs[msgIdx].role!=='user')return;
+  const texto=msgs[msgIdx].content;
+  // Borrar desde ese mensaje en adelante
+  sessions[sIdx].messages=msgs.slice(0,msgIdx);
+  saveChatSessions(sessions);
+  chatHistory=sessions[sIdx].messages.slice();
+  // Poner el texto en el input
+  const inp=document.getElementById('chatInput');
+  if(inp){inp.value=texto;inp.focus();}
+  // Re-renderizar el chat sin los mensajes borrados
+  const box=document.getElementById('chatBox');
+  if(box){
+    const WELCOME=`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-800" style="max-width:85%">¡Buenas! Soy tu agrónomo IA especializado en el campo uruguayo. Consultame lo que quieras: pasturas, hacienda, fertilizantes, sanidad, suelos, clima... ¿En qué te puedo dar una mano?</div></div>`;
+    if(!sessions[sIdx].messages.length){box.innerHTML=WELCOME;}
+    else{box.innerHTML=sessions[sIdx].messages.map((m,i)=>renderMsgHtml(m,i)).join('');}
+    box.scrollTop=box.scrollHeight;
+  }
 }
 
 function updateActiveChatTitle(msg){
@@ -2104,21 +2160,23 @@ const box=document.getElementById('chatBox');
 inp.value='';
 if(!activeChatId)initChat();
 updateActiveChatTitle(msg);
-box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 justify-end items-start"><div class="bg-blue-600 text-white rounded-xl px-3 py-2 text-sm" style="max-width:85%">${escapeHtml(msg)}</div><div class="text-xl leading-none mt-1">👤</div></div>`);
+const msgIdx=chatHistory.length;
+chatHistory.push({role:'user',content:msg});
+saveMessageToSession('user',msg);
+box.insertAdjacentHTML('beforeend',renderMsgHtml({role:'user',content:msg},msgIdx));
 box.scrollTop=box.scrollHeight;
 const loadId='cl-'+Date.now();
 box.insertAdjacentHTML('beforeend',`<div id="${loadId}" class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-500 pulse-dot">Pensando...</div></div>`);
 box.scrollTop=box.scrollHeight;
-chatHistory.push({role:'user',content:msg});
-saveMessageToSession('user',msg);
 try{
 const res=await fetch('/api/chat',{method:'POST',headers:authHeader(),body:jbody({messages:chatHistory})});
 document.getElementById(loadId)?.remove();
 if(!res.ok){const errHtml=await backendErrorHtml(res);box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div style="max-width:85%">${errHtml}</div></div>`);box.scrollTop=box.scrollHeight;return;}
 const{text}=await res.json();
+const aIdx=chatHistory.length;
 chatHistory.push({role:'assistant',content:text});
 saveMessageToSession('assistant',text);
-box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-800 whitespace-pre-wrap" style="max-width:85%">${escapeHtml(text)}</div></div>`);
+box.insertAdjacentHTML('beforeend',renderMsgHtml({role:'assistant',content:text},aIdx));
 box.scrollTop=box.scrollHeight;
 renderChatSessionsList();
 }catch(e){
