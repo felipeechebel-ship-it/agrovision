@@ -96,8 +96,8 @@ app.use('/api', limiter);
 
 // ─── Contador en memoria para anónimos (IP) ───────────────────────────────────
 const anonCounters = {};
-const ANON_DAILY_LIMIT = 10;
-const FREE_DAILY_LIMIT = 10;
+const ANON_DAILY_LIMIT = 5;
+const FREE_DAILY_LIMIT = 5;
 
 function getTodayStr() {
   return new Date().toISOString().split('T')[0];
@@ -345,7 +345,7 @@ Respondé con:
 });
 
 // ─── ANÁLISIS DE CAMPO POR CUADRANTES ────────────────────────────────────────
-app.post('/api/field', checkAuth, checkLimit, async (req, res) => {
+app.post('/api/field', checkAuth, async (req, res) => {
   try {
     const { quads, crop, lat, lon, season, date, country } = req.body;
     if (!quads?.length) return res.status(400).json({ error: 'Sin cuadrantes' });
