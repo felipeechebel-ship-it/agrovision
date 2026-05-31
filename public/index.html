@@ -2,8 +2,19 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>AgroVisión — Ingeniero agrónomo IA</title>
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#16a34a" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="AgroVisión" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<link rel="icon" type="image/svg+xml" href="/icon.svg" />
+<!-- SEO -->
+<meta name="description" content="Tu ingeniero agrónomo con IA para el campo uruguayo. Análisis de pasturas, ganado, malezas, suelos y mercado." />
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -750,7 +761,20 @@ body *{visibility:hidden}
 </section>
 
 </main>
-<footer class="text-emerald-100 text-xs text-center mt-6 opacity-80">AgroVisión · NDVI: NASA GIBS · No reemplaza la visita de un agrónomo a campo<br><span class="opacity-60">Powered by Vortex</span></footer>
+<!-- Banner PWA instalar -->
+<div id="pwaBanner" class="hidden fixed bottom-0 left-0 right-0 z-50 p-3" style="background:linear-gradient(135deg,#052e16,#14532d);border-top:2px solid #16a34a">
+  <div class="max-w-lg mx-auto flex items-center gap-3">
+    <span class="text-2xl flex-shrink-0">🌱</span>
+    <div class="flex-1 min-w-0">
+      <div class="text-white font-semibold text-sm">Instalá AgroVisión en tu celu</div>
+      <div id="pwaIOSNote" class="hidden text-emerald-200 text-xs mt-0.5">Tocá <b>Compartir</b> → <b>"Agregar a inicio"</b> en Safari</div>
+      <div id="pwaAndroidNote" class="text-emerald-200 text-xs mt-0.5">Funciona sin internet, abre como app nativa</div>
+    </div>
+    <button id="pwaBtnInstall" onclick="installPWA()" class="flex-shrink-0 bg-emerald-500 hover:bg-emerald-400 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition">Instalar</button>
+    <button onclick="dismissPWA()" class="flex-shrink-0 text-emerald-300 hover:text-white text-xl leading-none px-1">&times;</button>
+  </div>
+</div>
+<footer class="text-emerald-100 text-xs text-center mt-6 opacity-80 pb-16">AgroVisión · NDVI: NASA GIBS · No reemplaza la visita de un agrónomo a campo<br><span class="opacity-60">Powered by Vortex</span></footer>
 </div>
 
 <script>
@@ -2782,6 +2806,51 @@ function renderClima(d,lat,lon){
     }catch(e){/* ignorar */}
   }
 })();
+
+// ============ PWA: SERVICE WORKER + BANNER INSTALAR ============
+let _pwaPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();
+  _pwaPrompt=e;
+  const banner=document.getElementById('pwaBanner');
+  if(banner)banner.classList.remove('hidden');
+});
+function installPWA(){
+  if(!_pwaPrompt)return;
+  _pwaPrompt.prompt();
+  _pwaPrompt.userChoice.then(()=>{
+    _pwaPrompt=null;
+    const banner=document.getElementById('pwaBanner');
+    if(banner)banner.classList.add('hidden');
+  });
+}
+function dismissPWA(){
+  const banner=document.getElementById('pwaBanner');
+  if(banner)banner.classList.add('hidden');
+  localStorage.setItem('pwaDismissed','1');
+}
+window.addEventListener('appinstalled',()=>{
+  const banner=document.getElementById('pwaBanner');
+  if(banner)banner.classList.add('hidden');
+});
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  });
+}
+// iOS: mostrar instrucciones manuales si no está instalada
+window.addEventListener('DOMContentLoaded',()=>{
+  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone;
+  if(isIOS&&!isStandalone&&!localStorage.getItem('pwaDismissed')){
+    const banner=document.getElementById('pwaBanner');
+    if(banner){
+      document.getElementById('pwaBtnInstall').classList.add('hidden');
+      document.getElementById('pwaIOSNote').classList.remove('hidden');
+      banner.classList.remove('hidden');
+    }
+  }
+});
 </script>
 </body>
 </html>

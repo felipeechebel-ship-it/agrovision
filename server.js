@@ -626,6 +626,28 @@ Respondé SOLO en JSON puro (sin texto extra):
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── PWA: íconos SVG → respuesta con Content-Type correcto ───────────────────
+const fs = require('fs');
+const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="100" fill="#16a34a"/>
+  <ellipse cx="256" cy="210" rx="115" ry="145" fill="#4ade80" transform="rotate(-18 256 210)"/>
+  <ellipse cx="256" cy="210" rx="115" ry="145" fill="#22c55e" transform="rotate(18 256 210)"/>
+  <rect x="245" y="320" width="22" height="85" rx="11" fill="#15803d"/>
+  <ellipse cx="215" cy="185" rx="38" ry="58" fill="white" opacity="0.15" transform="rotate(-18 215 185)"/>
+  <text x="256" y="420" font-family="Arial" font-size="72" font-weight="900" fill="white" text-anchor="middle" opacity="0.85">AV</text>
+</svg>`;
+
+app.get('/icon-192.png', (_, res) => {
+  res.set('Content-Type', 'image/svg+xml');
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.send(iconSvg);
+});
+app.get('/icon-512.png', (_, res) => {
+  res.set('Content-Type', 'image/svg+xml');
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.send(iconSvg);
+});
+
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 app.get('/health', (_, res) => res.json({ status: 'ok', model: GEMINI_MODEL }));
 

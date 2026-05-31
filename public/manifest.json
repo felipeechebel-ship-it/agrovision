@@ -1,0 +1,27 @@
+{
+  "name": "AgroVisión — Agrónomo IA",
+  "short_name": "AgroVisión",
+  "description": "Tu ingeniero agrónomo asistido por IA para el campo uruguayo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#052e16",
+  "theme_color": "#16a34a",
+  "orientation": "portrait-primary",
+  "lang": "es-UY",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["agriculture", "productivity", "utilities"],
+  "screenshots": []
+}
