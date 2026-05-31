@@ -34,8 +34,8 @@ body *{visibility:hidden}
 .print-logo{display:block!important}
 }
 .print-logo{display:none}
-#authModal{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center}
-#authModal.open{display:flex}
+#authModal,#planesModal{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center}
+#authModal.open,#planesModal.open{display:flex}
 .auth-tab-active{border-bottom:2px solid #16a34a;color:#065f46;font-weight:700}
 .auth-tab-inactive{border-bottom:2px solid transparent;color:#6b7280}
 </style>
@@ -58,7 +58,7 @@ body *{visibility:hidden}
   </div>
   <!-- Estado logueado -->
   <div id="areaUser" class="hidden flex items-center gap-2 flex-wrap">
-    <span id="userBadge" class="text-xs bg-white/20 px-3 py-1.5 rounded-lg text-white font-medium"></span>
+    <button id="userBadge" onclick="openPlanesModal()" class="text-xs bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg text-white font-medium transition cursor-pointer"></button>
     <button onclick="doLogout()" class="bg-white/10 hover:bg-white/20 text-white border border-white/30 px-3 py-1.5 rounded-lg text-sm transition">Salir</button>
   </div>
 </div>
@@ -112,6 +112,72 @@ body *{visibility:hidden}
     <button onclick="doRegister()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg text-sm transition">Crear cuenta gratis</button>
     <p class="text-xs text-center text-gray-500">Plan gratuito: 5 análisis de foto/día</p>
   </div>
+</div>
+</div>
+
+<!-- ─── MODAL PLANES ──────────────────────────────────────────────────────── -->
+<div id="planesModal" role="dialog" aria-modal="true">
+<div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+  <div class="leaf-bg px-6 pt-6 pb-4">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2"><div class="text-3xl">🌱</div><span class="text-white font-bold text-lg">Planes AgroVisión</span></div>
+      <button onclick="closePlanesModal()" class="text-white/70 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <p class="text-emerald-100 text-xs mt-1">Elegí el plan que mejor se adapta a tu campo</p>
+  </div>
+  <div class="p-5 space-y-3" id="planesContent">
+    <!-- Plan Gratis -->
+    <div id="planCard-free" class="border-2 border-gray-200 rounded-xl p-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2"><span class="text-xl">⚡</span><span class="font-bold text-gray-800">Gratis</span></div>
+        <span class="text-lg font-bold text-gray-600">$0 <span class="text-xs font-normal">/ mes</span></span>
+      </div>
+      <ul class="text-xs text-gray-600 space-y-1">
+        <li>✅ 5 análisis de foto por día</li>
+        <li>✅ Análisis de cuadrantes satelital ilimitado</li>
+        <li>✅ Chat con el agrónomo IA</li>
+        <li>✅ Clima y mercado</li>
+        <li>❌ Sin historial en la nube</li>
+        <li>❌ Sin alertas automáticas</li>
+      </ul>
+      <div id="planCurrentFree" class="hidden mt-3 text-center text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg py-1.5 font-medium">✅ Tu plan actual</div>
+    </div>
+    <!-- Plan Pro -->
+    <div class="border-2 border-emerald-400 rounded-xl p-4 relative">
+      <div class="absolute -top-2.5 right-4 bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">RECOMENDADO</div>
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2"><span class="text-xl">🚀</span><span class="font-bold text-gray-800">Pro</span></div>
+        <span class="text-lg font-bold text-emerald-700">$6 USD <span class="text-xs font-normal">/ mes</span></span>
+      </div>
+      <ul class="text-xs text-gray-600 space-y-1">
+        <li>✅ <b>Análisis de foto ilimitados</b></li>
+        <li>✅ Análisis satelital ilimitado</li>
+        <li>✅ Historial completo en la nube</li>
+        <li>✅ Alertas proactivas automáticas</li>
+        <li>✅ Exportar a PDF y CSV</li>
+        <li>✅ Soporte prioritario</li>
+      </ul>
+      <div id="planCurrentPro" class="hidden mt-3 text-center text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg py-1.5 font-medium">✅ Tu plan actual</div>
+      <button id="btnContratarPro" onclick="contactarPlan('Pro')" class="hidden mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-lg text-sm transition">🚀 Quiero el plan Pro</button>
+    </div>
+    <!-- Plan Familia -->
+    <div class="border-2 border-blue-300 rounded-xl p-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2"><span class="text-xl">👨‍👩‍👧</span><span class="font-bold text-gray-800">Familia / Establecimiento</span></div>
+        <span class="text-lg font-bold text-blue-700">$15 USD <span class="text-xs font-normal">/ mes</span></span>
+      </div>
+      <ul class="text-xs text-gray-600 space-y-1">
+        <li>✅ <b>Todo lo de Pro</b></li>
+        <li>✅ <b>Hasta 5 usuarios</b></li>
+        <li>✅ Gestión compartida del establecimiento</li>
+        <li>✅ Dashboard multi-campo</li>
+        <li>✅ Reportes mensuales automáticos</li>
+      </ul>
+      <div id="planCurrentFamilia" class="hidden mt-3 text-center text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg py-1.5 font-medium">✅ Tu plan actual</div>
+      <button id="btnContratarFamilia" onclick="contactarPlan('Familia')" class="hidden mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg text-sm transition">👨‍👩‍👧 Quiero el plan Familia</button>
+    </div>
+  </div>
+  <div class="px-5 pb-5 text-center text-xs text-gray-400">¿Preguntas? Escribinos a <a href="mailto:hola@agrovision.uy" class="text-emerald-600 underline">hola@agrovision.uy</a></div>
 </div>
 </div>
 
@@ -874,7 +940,7 @@ if(res.status===429){
   return`<div class="bg-orange-50 border-l-4 border-orange-500 rounded p-3 text-sm">
 <b class="text-orange-900">⏱️ Alcanzaste el límite del plan gratuito (5 análisis de foto/día)</b>
 <p class="text-orange-800 mt-1">Tu límite diario se reinicia a medianoche.</p>
-<button onclick="alert('Próximamente disponible. Escribinos para más info.')" class="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium">🚀 Mejorar a Pro — $6 USD/mes (próximamente)</button>
+<button onclick="openPlanesModal()" class="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium">🚀 Ver planes disponibles</button>
 </div>`;
 }
 if(res.status===503)return`<div class="bg-yellow-50 border-l-4 border-yellow-500 rounded p-3 text-sm text-yellow-900">⚠️ Servicio no disponible. Intentá en un momento.</div>`;
@@ -1886,6 +1952,34 @@ window.addEventListener('DOMContentLoaded',loadWeather);
 
 // ============ AUTENTICACIÓN ============
 
+function openPlanesModal(){
+  const modal=document.getElementById('planesModal');
+  modal.classList.add('open');
+  // Detectar plan actual y marcar
+  const ud=localStorage.getItem('agroUserData');
+  let plan='free';
+  try{plan=JSON.parse(ud).plan||'free'}catch{}
+  ['free','pro','familia'].forEach(p=>{
+    document.getElementById('planCurrent'+p.charAt(0).toUpperCase()+p.slice(1))?.classList.add('hidden');
+    document.getElementById('btnContratar'+p.charAt(0).toUpperCase()+p.slice(1))?.classList.add('hidden');
+  });
+  document.getElementById('planCurrent'+plan.charAt(0).toUpperCase()+plan.slice(1))?.classList.remove('hidden');
+  // Mostrar botones de contratar solo para planes superiores al actual
+  if(plan==='free'){
+    document.getElementById('btnContratarPro')?.classList.remove('hidden');
+    document.getElementById('btnContratarFamilia')?.classList.remove('hidden');
+  }else if(plan==='pro'){
+    document.getElementById('btnContratarFamilia')?.classList.remove('hidden');
+  }
+}
+function closePlanesModal(){document.getElementById('planesModal').classList.remove('open')}
+function contactarPlan(nombre){
+  const email=encodeURIComponent('hola@agrovision.uy');
+  const subject=encodeURIComponent(`Quiero contratar el plan ${nombre} de AgroVisión`);
+  const body=encodeURIComponent(`Hola! Me interesa el plan ${nombre} de AgroVisión.\n\nMi email de cuenta: \nNombre: \n\nQuedo a la espera. ¡Gracias!`);
+  window.open(`mailto:${email}?subject=${subject}&body=${body}`,'_blank');
+}
+
 function openAuthModal(tab='login'){
   document.getElementById('authModal').classList.add('open');
   switchAuthTab(tab);
@@ -1900,6 +1994,9 @@ function closeAuthModal(){
 // Cerrar con click en backdrop
 document.getElementById('authModal').addEventListener('click',function(e){
   if(e.target===this)closeAuthModal();
+});
+document.getElementById('planesModal').addEventListener('click',function(e){
+  if(e.target===this)closePlanesModal();
 });
 
 function switchAuthTab(tab){

@@ -182,8 +182,11 @@ async function gemini(parts, maxTokens = 4000, jsonMode = false) {
   });
   const data = await res.json();
   if (!res.ok) {
-    const err = new Error(data.error?.message || `Gemini ${res.status}`);
-    err.status = res.status;
+    const raw = data.error?.message || '';
+    const isQuota = res.status === 429 || /quota|resource_exhausted|rate.?limit/i.test(raw);
+    const err = new Error(isQuota ? 'IA_QUOTA' : (raw || `Error ${res.status}`));
+    err.status = isQuota ? 503 : res.status;
+    err.isQuota = isQuota;
     throw err;
   }
   return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -383,7 +386,14 @@ app.post('/api/chat', async (req, res) => {
     };
     const gemRes = await nodeFetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const dt = await gemRes.json();
-    if (!gemRes.ok) { const e = new Error(dt.error?.message); e.status = gemRes.status; throw e; }
+    if (!gemRes.ok) {
+      const raw = dt.error?.message || '';
+      const isQuota = gemRes.status === 429 || /quota|resource_exhausted|rate.?limit/i.test(raw);
+      const e = new Error(isQuota ? 'IA_QUOTA' : (raw || `Error ${gemRes.status}`));
+      e.status = isQuota ? 503 : gemRes.status;
+      e.isQuota = isQuota;
+      throw e;
+    }
     res.json({ text: dt.candidates?.[0]?.content?.parts?.[0]?.text || '' });
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message });
