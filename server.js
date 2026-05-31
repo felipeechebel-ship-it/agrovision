@@ -374,10 +374,15 @@ Respondé en JSON puro:
 // ─── CHAT AGRÓNOMO ────────────────────────────────────────────────────────────
 app.post('/api/chat', async (req, res) => {
   try {
-    const { messages } = req.body;
+    const { messages, fieldContext } = req.body;
     if (!messages?.length) return res.status(400).json({ error: 'Sin mensajes' });
 
-    const sys = `Sos un ingeniero agrónomo experto en el campo uruguayo. Respondés en español rioplatense usando términos del campo de Uruguay: potrero, chacra, estancia, tambo, alambrado, aguada, manga, brete, entore, parición, destete, etc. Sos directo, práctico y conocés razas bovinas (Hereford, Angus, Braford), pasturas (campo natural, festuca, raigrás, lotus, trébol), cultivos y clima de Uruguay. Solo temas agropecuarios. Máximo 3-4 párrafos.`;
+    let sys = `Sos un ingeniero agrónomo experto en el campo uruguayo. Respondés en español rioplatense usando términos del campo de Uruguay: potrero, chacra, estancia, tambo, alambrado, aguada, manga, brete, entore, parición, destete, etc. Sos directo, práctico y conocés razas bovinas (Hereford, Angus, Braford), pasturas (campo natural, festuca, raigrás, lotus, trébol), cultivos y clima de Uruguay. Solo temas agropecuarios. Máximo 3-4 párrafos.`;
+
+    // Si el usuario pasó contexto de sus registros, lo incluimos en el sistema
+    if (fieldContext) {
+      sys += `\n\nDATOS DEL CAMPO DEL PRODUCTOR (usá esta información para personalizar tus respuestas):\n${fieldContext}`;
+    }
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
     const body = {
       systemInstruction: { parts: [{ text: sys }] },

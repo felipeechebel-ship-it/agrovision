@@ -510,12 +510,19 @@ body *{visibility:hidden}
 </section>
 
 <section id="panel-chat" class="hidden">
-<div class="flex items-center justify-between mb-3">
+<div class="flex items-center justify-between mb-2">
   <div>
     <h2 class="text-lg font-semibold text-gray-800">💬 Agrónomo IA</h2>
-    <p class="text-xs text-gray-500">Consultá sobre pasturas, hacienda, cultivos, suelos o cualquier tema del campo</p>
+    <p class="text-xs text-gray-500 hidden sm:block">Consultá sobre pasturas, hacienda, cultivos, suelos o cualquier tema del campo</p>
   </div>
-  <button onclick="newChat()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1">✏️ Nuevo chat</button>
+  <button onclick="newChat()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold">✏️ Nuevo chat</button>
+</div>
+<!-- Toggle: incluir mis datos del campo -->
+<div class="mb-2 flex items-center gap-2">
+  <button id="btnFieldCtx" onclick="toggleFieldContext()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-gray-300 bg-white text-gray-600 hover:border-emerald-400 transition">
+    <span id="fieldCtxIcon">📋</span> <span id="fieldCtxLabel">Incluir mis registros del campo</span>
+  </button>
+  <span id="fieldCtxBadge" class="hidden text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">✅ El agrónomo ve tu campo</span>
 </div>
 <!-- Historial de chats guardados -->
 <div id="chatSessions" class="mb-3 flex gap-2 overflow-x-auto pb-1" style="scrollbar-width:thin"></div>
@@ -523,12 +530,19 @@ body *{visibility:hidden}
 <div id="chatBox" class="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-3 overflow-y-auto space-y-3" style="min-height:220px;max-height:420px">
 <div class="flex gap-2 items-start">
 <div class="text-2xl leading-none mt-1">🌱</div>
-<div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-800" style="max-width:85%">¡Buenas! Soy tu agrónomo IA especializado en el campo uruguayo. Consultame lo que quieras: pasturas, hacienda, fertilizantes, sanidad, suelos, clima... ¿En qué te puedo dar una mano?</div>
+<div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-800" style="max-width:85%">¡Buenas! Soy tu agrónomo IA especializado en el campo uruguayo. Podés hablarme por voz 🎤 o escribirme. Si querés que tenga en cuenta tus registros del campo, activá el botón <b>"Incluir mis registros"</b> arriba.</div>
 </div>
 </div>
-<div class="flex gap-2">
-<input id="chatInput" type="text" placeholder="Ej: ¿Cuándo conviene resembrar el campo natural?" class="flex-1 border border-gray-300 rounded-lg p-2 text-sm" onkeydown="if(event.key==='Enter')sendChat()" />
-<button onclick="sendChat()" id="chatSendBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Enviar</button>
+<!-- Input + micrófono + enviar -->
+<div class="flex gap-2 items-center">
+  <button id="voiceBtn" onclick="toggleVoice()" class="flex-shrink-0 w-10 h-10 rounded-full border-2 border-gray-300 bg-white hover:border-emerald-500 flex items-center justify-center text-xl transition" title="Nota de voz">🎤</button>
+  <input id="chatInput" type="text" placeholder="Escribí o usá el micrófono 🎤" class="flex-1 border border-gray-300 rounded-lg p-2 text-sm" style="min-width:0" onkeydown="if(event.key==='Enter')sendChat()" />
+  <button onclick="sendChat()" id="chatSendBtn" class="flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Enviar</button>
+</div>
+<!-- Indicador de grabación -->
+<div id="voiceIndicator" class="hidden mt-2 flex items-center gap-2 text-sm text-red-600 font-medium">
+  <span class="w-2.5 h-2.5 rounded-full bg-red-500 pulse-dot inline-block"></span>
+  <span id="voiceStatus">Escuchando... hablá ahora</span>
 </div>
 <div class="mt-3 flex flex-wrap gap-2">
 <span class="text-xs text-gray-500 self-center">Consultas rápidas:</span>
@@ -2169,7 +2183,9 @@ const loadId='cl-'+Date.now();
 box.insertAdjacentHTML('beforeend',`<div id="${loadId}" class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-500 pulse-dot">Pensando...</div></div>`);
 box.scrollTop=box.scrollHeight;
 try{
-const res=await fetch('/api/chat',{method:'POST',headers:authHeader(),body:jbody({messages:chatHistory})});
+const payload={messages:chatHistory};
+const fc=buildFieldContext();if(fc)payload.fieldContext=fc;
+const res=await fetch('/api/chat',{method:'POST',headers:authHeader(),body:jbody(payload)});
 document.getElementById(loadId)?.remove();
 if(!res.ok){const errHtml=await backendErrorHtml(res);box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div style="max-width:85%">${errHtml}</div></div>`);box.scrollTop=box.scrollHeight;return;}
 const{text}=await res.json();
@@ -2189,6 +2205,138 @@ box.scrollTop=box.scrollHeight;
 function quickChat(msg){
 document.getElementById('chatInput').value=msg;
 sendChat();
+}
+
+// ── CONTEXTO DE CAMPO EN EL CHAT ─────────────────────────────────────────────
+let fieldContextActive = false;
+
+function toggleFieldContext(){
+  fieldContextActive = !fieldContextActive;
+  const btn  = document.getElementById('btnFieldCtx');
+  const badge = document.getElementById('fieldCtxBadge');
+  const label = document.getElementById('fieldCtxLabel');
+  const icon  = document.getElementById('fieldCtxIcon');
+  if(fieldContextActive){
+    btn.classList.remove('border-gray-300','text-gray-600');
+    btn.classList.add('border-emerald-500','text-emerald-700','bg-emerald-50');
+    badge.classList.remove('hidden');
+    icon.textContent='✅';
+    label.textContent='Mis registros activados';
+  } else {
+    btn.classList.add('border-gray-300','text-gray-600');
+    btn.classList.remove('border-emerald-500','text-emerald-700','bg-emerald-50');
+    badge.classList.add('hidden');
+    icon.textContent='📋';
+    label.textContent='Incluir mis registros del campo';
+  }
+}
+
+function buildFieldContext(){
+  if(!fieldContextActive) return null;
+  const lines = [];
+  // Potreros / campos
+  try {
+    const potreros = JSON.parse(localStorage.getItem('agroPotreros')||'[]');
+    if(potreros.length){
+      lines.push('=== MIS POTREROS ===');
+      potreros.forEach(p => {
+        lines.push(`- ${p.name||p.id}: cultivo=${p.crop||'sin especificar'}, área≈${p.areaMapped||'?'}ha, lat/lon aprox ${p.centerLat?.toFixed(4)||'?'},${p.centerLon?.toFixed(4)||'?'}`);
+      });
+    }
+  } catch{}
+  // Datos de campos y ganadería
+  try {
+    const ud = JSON.parse(localStorage.getItem('agroUserData')||'{}');
+    const fields = ud.data?.fields || ud.fields || [];
+    const livestock = ud.data?.livestock || ud.livestock || [];
+    if(fields.length){
+      lines.push('=== MIS CAMPOS ===');
+      fields.forEach(f => lines.push(`- ${f.name}: ${f.crop||''}, ${f.area||''}ha, notas: ${f.notes||'ninguna'}`));
+    }
+    if(livestock.length){
+      lines.push('=== MIS REGISTROS GANADEROS ===');
+      livestock.slice(0,20).forEach(r => {
+        lines.push(`- [${r.fecha||'sin fecha'}] ${r.lote||''}: ${r.tipo||''} — ${r.descripcion||''} ${r.proxima?'| Próx: '+r.proxima:''} ${r.completado?'(completado)':''}`);
+      });
+    }
+  } catch{}
+  return lines.length ? lines.join('\n') : null;
+}
+
+// ── NOTA DE VOZ ───────────────────────────────────────────────────────────────
+let voiceRecognition = null;
+let voiceActive = false;
+
+function toggleVoice(){
+  if(voiceActive){ stopVoice(); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){
+    // Fallback: mostrar aviso
+    const box = document.getElementById('chatBox');
+    box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2 text-sm text-yellow-800" style="max-width:85%">⚠️ Tu navegador no soporta reconocimiento de voz. Usá <b>Chrome</b> en Android o Safari en iPhone (iOS 14.5+). Podés escribir tu consulta igual.</div></div>`);
+    box.scrollTop = box.scrollHeight;
+    return;
+  }
+  startVoice(SR);
+}
+
+function startVoice(SR){
+  voiceRecognition = new SR();
+  voiceRecognition.lang = 'es-UY';
+  voiceRecognition.interimResults = true;
+  voiceRecognition.maxAlternatives = 1;
+  voiceActive = true;
+
+  const btn = document.getElementById('voiceBtn');
+  const indicator = document.getElementById('voiceIndicator');
+  const status = document.getElementById('voiceStatus');
+  const inp = document.getElementById('chatInput');
+  btn.textContent = '⏹️';
+  btn.classList.add('border-red-400','bg-red-50');
+  btn.classList.remove('border-gray-300');
+  indicator.classList.remove('hidden');
+  status.textContent = 'Escuchando... hablá ahora';
+
+  voiceRecognition.onresult = e => {
+    let transcript = '';
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      transcript += e.results[i][0].transcript;
+    }
+    inp.value = transcript;
+    if(e.results[e.results.length-1].isFinal){
+      status.textContent = 'Procesando...';
+    }
+  };
+
+  voiceRecognition.onend = () => {
+    stopVoice();
+    const msg = document.getElementById('chatInput').value.trim();
+    if(msg) sendChat();
+  };
+
+  voiceRecognition.onerror = e => {
+    stopVoice();
+    const errMsg = e.error === 'not-allowed'
+      ? 'Permiso de micrófono denegado. Habilitalo en la configuración del navegador.'
+      : e.error === 'no-speech' ? 'No se detectó voz. Intentá de nuevo.'
+      : `Error de voz: ${e.error}`;
+    const box = document.getElementById('chatBox');
+    box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2 text-sm text-yellow-800" style="max-width:85%">⚠️ ${errMsg}</div></div>`);
+    box.scrollTop = box.scrollHeight;
+  };
+
+  voiceRecognition.start();
+}
+
+function stopVoice(){
+  voiceActive = false;
+  if(voiceRecognition){ try{ voiceRecognition.stop(); } catch{} voiceRecognition = null; }
+  const btn = document.getElementById('voiceBtn');
+  const indicator = document.getElementById('voiceIndicator');
+  btn.textContent = '🎤';
+  btn.classList.remove('border-red-400','bg-red-50');
+  btn.classList.add('border-gray-300');
+  indicator.classList.add('hidden');
 }
 
 // ============ MALEZAS ============
