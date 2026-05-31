@@ -119,8 +119,8 @@ async function checkAuth(req, res, next) {
     if (profile) {
       req.user = profile;
     } else {
-      // Token válido pero sin perfil → crear perfil y tratar como free
-      const newProfile = {
+      // Token válido pero sin perfil → asignar free INMEDIATAMENTE y crear perfil en background
+      req.user = {
         id: user.id,
         email: user.email || '',
         nombre: user.user_metadata?.nombre || user.email?.split('@')[0] || '',
@@ -128,8 +128,7 @@ async function checkAuth(req, res, next) {
         analisis_hoy: 0,
         fecha_reset: new Date().toISOString()
       };
-      await dbInsert('profiles', newProfile);
-      req.user = newProfile;
+      dbInsert('profiles', req.user).catch(() => {});
     }
   } catch (e) {
     // token inválido → usuario anónimo
