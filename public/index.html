@@ -892,8 +892,10 @@ map=L.map('map').setView([-32.5,-56.0],7);
 baseLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'}).addTo(map);
 // Capa de etiquetas (nombres de ciudades, rutas) encima del satélite
 L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/toner-labels/{z}/{x}/{y}.png',{maxZoom:18,opacity:0.7,attribution:'Labels: Stamen'}).addTo(map);
-document.getElementById('dateInput').value=dateStr(20);
-setLayer('ndvi',dateStr(20));
+const initDate=smartDate('ndvi');
+document.getElementById('dateInput').value=initDate;
+setLayer('ndvi',initDate);
+setTimeout(()=>autoScanLatest('ndvi',initDate),1000);
 map.on('click',e=>{if(window.drawingMode)addDrawPoint(e.latlng.lat,e.latlng.lng);else if(window.drawingManualMode)addManualPoint(e.latlng.lat,e.latlng.lng);else showSatAnalysis(e.latlng.lat,e.latlng.lng)});
 map.on('zoomend',()=>{const z=map.getZoom(),n=document.getElementById('zoomNotice');if(z>11){n.innerHTML=`🔍 Zoom ${z} — la capa NDVI se ve pixelada porque MODIS tiene 250m/pixel. <b>El terreno satelital HD debajo sí se ve bien</b>. Si querés ver tu campo en detalle sin pixelado, apretá <b>"👁️ Ocultar capa"</b> arriba.`;n.classList.remove('hidden')}else n.classList.add('hidden')});
 setTimeout(()=>map.invalidateSize(),200);
@@ -1004,20 +1006,82 @@ else if(type==='temp'){url=`${base}/MODIS_Terra_Land_Surface_Temp_Day/default/${
 ndviLayer=L.tileLayer(url,{maxNativeZoom:nm,maxZoom:18,opacity:0.55,attribution:'NASA GIBS',errorTileUrl:''}).addTo(map);
 }
 
-function changeLayer(){currentLayerType=document.getElementById('layerSelect').value;setLayer(currentLayerType,document.getElementById('dateInput').value)}
+// Devuelve la fecha óptima según la capa
+function smartDate(type){
+  const d=new Date();
+  if(type==='truecolor'||type==='aqua_truecolor')d.setDate(d.getDate()-1);
+  else if(type==='ndvi'||type==='aqua_ndvi')d.setDate(d.getDate()-3);
+  else if(type==='temp')d.setDate(d.getDate()-2);
+  else if(type==='moisture')d.setDate(d.getDate()-5);
+  else d.setDate(d.getDate()-2);
+  return d.toISOString().split('T')[0];
+}
 
-// Carga la imagen más reciente disponible (prueba desde hoy hacia atrás)
+function changeLayer(){
+  currentLayerType=document.getElementById('layerSelect').value;
+  if(!['s2ndvi','s2truecolor','s2cloudless','planet_visual','planet_analytic'].includes(currentLayerType)){
+    const sd=smartDate(currentLayerType);
+    document.getElementById('dateInput').value=sd;
+    setLayer(currentLayerType,sd);
+    autoScanLatest(currentLayerType,sd);
+  }else{
+    setLayer(currentLayerType,document.getElementById('dateInput').value);
+  }
+}
+
+// Busca hacia atrás el tile más reciente con datos reales para Uruguay
+async function autoScanLatest(type,startDate){
+  const base='https://gibs.earthdata.nasa.gov/wmts/epsg3857/best';
+  const z=7,xt=44,yt=76; // tile Uruguay centro
+  let tplUrl;
+  if(type==='truecolor')tplUrl=`${base}/MODIS_Terra_CorrectedReflectance_TrueColor/default/{d}/GoogleMapsCompatible_Level9/${z}/${yt}/${xt}.jpg`;
+  else if(type==='aqua_truecolor')tplUrl=`${base}/MODIS_Aqua_CorrectedReflectance_TrueColor/default/{d}/GoogleMapsCompatible_Level9/${z}/${yt}/${xt}.jpg`;
+  else if(type==='ndvi')tplUrl=`${base}/MODIS_Terra_NDVI_16Day/default/{d}/GoogleMapsCompatible_Level9/${z}/${yt}/${xt}.png`;
+  else if(type==='aqua_ndvi')tplUrl=`${base}/MODIS_Aqua_NDVI_16Day/default/{d}/GoogleMapsCompatible_Level9/${z}/${yt}/${xt}.png`;
+  else if(type==='temp')tplUrl=`${base}/MODIS_Terra_Land_Surface_Temp_Day/default/{d}/GoogleMapsCompatible_Level7/${z}/${yt}/${xt}.png`;
+  else return;
+  const maxTries=type.includes('ndvi')?20:7;
+  const zn=document.getElementById('zoomNotice');
+  zn.innerHTML='📡 Buscando imagen más reciente disponible...';zn.classList.remove('hidden');
+  for(let i=0;i<maxTries;i++){
+    const d=new Date();d.setDate(d.getDate()-i);
+    const ds=d.toISOString().split('T')[0];
+    const found=await new Promise(res=>{
+      const img=new Image();img.crossOrigin='anonymous';
+      img.onload=()=>{
+        try{const c=document.createElement('canvas');c.width=c.height=8;
+          const cx=c.getContext('2d');cx.drawImage(img,0,0,8,8);
+          const px=cx.getImageData(0,0,8,8).data;
+          let hasData=false;
+          for(let p=3;p<px.length;p+=4){if(px[p]>20){hasData=true;break}}
+          res(hasData);
+        }catch{res(true)}
+      };
+      img.onerror=()=>res(false);
+      img.src=tplUrl.replace('{d}',ds);
+      setTimeout(()=>res(false),4000);
+    });
+    if(found){
+      document.getElementById('dateInput').value=ds;
+      setLayer(type,ds);
+      zn.innerHTML=`✅ Imagen más reciente encontrada: <b>${ds}</b>`;
+      setTimeout(()=>zn.classList.add('hidden'),4000);
+      return;
+    }
+  }
+  zn.innerHTML='⚠️ No se encontró imagen reciente. Usá el selector de fecha manualmente.';
+  setTimeout(()=>zn.classList.add('hidden'),5000);
+}
+
+// Botón "Más reciente" — fuerza el escaneo desde hoy
 function loadLatestImage(){
   const type=document.getElementById('layerSelect').value;
-  // Para capas diarias usar ayer, para NDVI 16d usar hace 3 días
-  const daysBack=type.includes('ndvi')||type.includes('NDVI')?3:1;
-  const d=new Date();d.setDate(d.getDate()-daysBack);
-  const dateStr=d.toISOString().split('T')[0];
-  document.getElementById('dateInput').value=dateStr;
-  setLayer(type,dateStr);
-  document.getElementById('zoomNotice').innerHTML=`📡 Cargando imagen del ${dateStr}. Si aparece en blanco, usá el botón de nuevo o retrocedé unos días más.`;
-  document.getElementById('zoomNotice').classList.remove('hidden');
-  setTimeout(()=>document.getElementById('zoomNotice').classList.add('hidden'),5000);
+  if(['s2cloudless','planet_visual','planet_analytic'].includes(type))return;
+  if(type.startsWith('s2')){setLayer(type,document.getElementById('dateInput').value);return}
+  const sd=smartDate(type);
+  document.getElementById('dateInput').value=sd;
+  setLayer(type,sd);
+  autoScanLatest(type,sd);
 }
 
 // Sentinel Hub key management
