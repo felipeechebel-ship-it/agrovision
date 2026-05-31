@@ -569,8 +569,9 @@ body *{visibility:hidden}
 <div id="climaContent" class="hidden space-y-4">
   <div id="climaCurrent" class="bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-200 rounded-xl p-4"></div>
   <div>
-    <h3 class="font-semibold text-gray-700 mb-2 text-sm">📅 Pronóstico 7 días</h3>
+    <h3 class="font-semibold text-gray-700 mb-2 text-sm">📅 Pronóstico 7 días <span class="text-xs font-normal text-gray-400">(tocá un día para ver las horas)</span></h3>
     <div id="climaForecast" class="grid grid-cols-7 gap-1"></div>
+    <div id="climaDayDetail" class="hidden mt-3 bg-white border border-sky-200 rounded-xl p-3 overflow-x-auto"></div>
   </div>
   <div id="climaAgro" class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm"></div>
 </div>
@@ -2211,10 +2212,12 @@ async function fetchClima(lat,lon){
   document.getElementById('climaContent').classList.add('hidden');
   document.getElementById('climaError').classList.add('hidden');
   try{
-    const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m,wind_direction_10m,surface_pressure,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,et0_fao_evapotranspiration,weather_code&timezone=America%2FMontevideo&forecast_days=7`;
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m,wind_direction_10m,surface_pressure,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,et0_fao_evapotranspiration,weather_code&hourly=temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m&timezone=America%2FMontevideo&forecast_days=7`;
     const r=await fetch(url);
     if(!r.ok)throw new Error('Error meteorológico');
     const d=await r.json();
+    window._climaHourly=d.hourly;
+    window._climaDailyTimes=d.daily.time;
     renderClima(d,lat,lon);
     window.climaLoaded=true;
   }catch(e){
@@ -2225,6 +2228,44 @@ async function fetchClima(lat,lon){
 }
 
 function windDir(deg){const dirs=['N','NE','E','SE','S','SO','O','NO'];return dirs[Math.round(deg/45)%8]}
+
+let _selectedDay=-1;
+function showDayDetail(dayIdx){
+  const h=window._climaHourly;
+  const times=window._climaDailyTimes;
+  const detail=document.getElementById('climaDayDetail');
+  if(!h||!times){detail.classList.add('hidden');return}
+  // Si se clickea el mismo día lo cierra
+  if(_selectedDay===dayIdx){_selectedDay=-1;detail.classList.add('hidden');document.querySelectorAll('[id^=daycard-]').forEach(c=>c.classList.remove('ring-2','ring-sky-400'));return}
+  _selectedDay=dayIdx;
+  document.querySelectorAll('[id^=daycard-]').forEach((c,i)=>{c.classList.toggle('ring-2',i===dayIdx);c.classList.toggle('ring-sky-400',i===dayIdx)});
+  const dayDate=times[dayIdx];
+  // Filtrar horas de ese día
+  const slots=h.time.map((t,i)=>({t,i})).filter(x=>x.t.startsWith(dayDate));
+  const dayNames=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const d=new Date(dayDate+'T12:00:00');
+  const label=dayIdx===0?'Hoy':dayNames[d.getDay()]+' '+dayDate.slice(5).replace('-','/');
+  detail.innerHTML=`<div class="font-semibold text-sky-800 mb-2 text-sm">⏰ ${label} — detalle por hora</div>
+  <div class="flex gap-2 min-w-max">
+    ${slots.map(({t,i})=>{
+      const hora=t.slice(11,16);
+      const temp=h.temperature_2m[i];
+      const prob=h.precipitation_probability[i]||0;
+      const precip=h.precipitation[i]||0;
+      const wc=h.weather_code[i];
+      const wind=h.wind_speed_10m[i];
+      return`<div class="text-center px-2 py-2 rounded-lg ${precip>0?'bg-blue-50 border border-blue-200':'bg-gray-50 border border-gray-100'} min-w-[48px]">
+        <div class="text-xs text-gray-400 font-medium">${hora}</div>
+        <div class="text-lg my-0.5">${WMO_ICO[wc]||'⛅'}</div>
+        <div class="text-xs font-bold text-gray-800">${Math.round(temp)}°</div>
+        ${prob>20?`<div class="text-xs text-blue-500 font-medium">${prob}%</div>`:'<div class="text-xs text-gray-300">—</div>'}
+        ${precip>0?`<div class="text-xs text-blue-600">${precip.toFixed(1)}mm</div>`:''}
+        <div class="text-xs text-gray-400 mt-0.5">${wind}km/h</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+  detail.classList.remove('hidden');
+}
 
 function renderClima(d,lat,lon){
   const c=d.current;const daily=d.daily;
@@ -2251,7 +2292,7 @@ function renderClima(d,lat,lon){
     const dayName=i===0?'Hoy':dayNames[date.getDay()];
     const rain=daily.precipitation_sum[i];
     const rainProb=daily.precipitation_probability_max[i];
-    return`<div class="bg-white border ${rain>5?'border-blue-300 bg-blue-50':'border-gray-200'} rounded-xl p-2 text-center text-xs">
+    return`<div onclick="showDayDetail(${i})" class="bg-white border ${rain>5?'border-blue-300 bg-blue-50':'border-gray-200'} rounded-xl p-2 text-center text-xs cursor-pointer hover:border-sky-400 hover:shadow-md transition" id="daycard-${i}">
       <div class="font-semibold text-gray-600 mb-1 truncate">${dayName}</div>
       <div class="text-2xl">${WMO_ICO[daily.weather_code[i]]||'⛅'}</div>
       <div class="font-bold text-red-500 mt-1">${Math.round(daily.temperature_2m_max[i])}°</div>
