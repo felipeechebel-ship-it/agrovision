@@ -1775,14 +1775,17 @@ async function loadMarket(){
     if(!r.ok)throw new Error(d.error||'Error');
     marketPrices=d.prices||[];
     window.marketLoaded=true;
-    document.getElementById('marketCards').innerHTML=marketPrices.map(p=>`
-      <div class="bg-white border ${p.price?'border-gray-200':'border-gray-100 opacity-60'} rounded-xl p-4 text-center shadow-sm">
+    document.getElementById('marketCards').innerHTML=marketPrices.map(p=>{
+      const chg=parseFloat(p.change)||0;
+      const src=p.src?`<div class="text-xs text-gray-300 mt-1">${p.src}</div>`:'';
+      return`<div class="bg-white border ${p.price?'border-gray-200':'border-gray-100 opacity-60'} rounded-xl p-4 text-center shadow-sm">
         <div class="text-3xl mb-1">${p.icon}</div>
         <div class="font-bold text-gray-800 text-sm">${p.name}</div>
         <div class="text-xl font-bold text-emerald-700 mt-1">${p.price?'$'+p.price:'N/D'}</div>
         <div class="text-xs text-gray-500">${p.unit}</div>
-        ${p.price?`<div class="mt-1 text-xs font-medium ${parseFloat(p.change)>=0?'text-green-600':'text-red-500'}">${parseFloat(p.change)>=0?'▲':'▼'} ${Math.abs(p.change)}%</div>`:''}
-      </div>`).join('');
+        ${p.price&&p.src!=='IA estimado'?`<div class="mt-1 text-xs font-medium ${chg>=0?'text-green-600':'text-red-500'}">${chg>=0?'▲':'▼'} ${Math.abs(chg).toFixed(2)}%</div>`:''}
+        ${src}
+      </div>`}).join('');
     const upd=new Date(d.updated);
     document.getElementById('marketUpdated').textContent='Actualizado: '+upd.toLocaleString('es-UY');
   }catch(e){
@@ -1894,7 +1897,8 @@ async function analyzeSoil(fieldId){
     const r=await fetch(`/api/soil?lat=${field.lat}&lon=${field.lon}`);
     const d=await r.json();
     if(!r.ok)throw new Error(d.error);
-    out.innerHTML=`<h4 class="font-semibold text-amber-900 mb-2">🔬 Análisis de suelo — ${field.name}</h4><div class="whitespace-pre-wrap text-sm">${d.analysis}</div>`;
+    const srcLabel=d.fromSoilGrids?'<span class="text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full ml-2">Datos SoilGrids FAO</span>':'<span class="text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full ml-2">Estimación por región</span>';
+    out.innerHTML=`<h4 class="font-semibold text-amber-900 mb-2">🔬 Análisis de suelo — ${field.name}${srcLabel}</h4><div class="whitespace-pre-wrap text-sm leading-relaxed">${d.analysis}</div>`;
   }catch(e){
     out.innerHTML=`<span class="text-red-600">Error: ${e.message}</span>`;
   }

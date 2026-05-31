@@ -3,7 +3,6 @@ const nodeFetch = require('node-fetch');
 const express   = require('express');
 const rateLimit = require('express-rate-limit');
 const path      = require('path');
-const ws        = require('ws');
 
 const app = express();
 app.use(express.json({ limit: '15mb' }));
@@ -399,35 +398,71 @@ app.get('/api/planet/tile/:z/:x/:y', async (req, res) => {
   }
 });
 
-// ─── MERCADO: precios commodity (Yahoo Finance) ───────────────────────────────
+// ─── MERCADO: precios commodity (Yahoo Finance + fallback Gemini) ─────────────
+const YF_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'application/json,text/html,*/*',
+  'Accept-Language': 'es-UY,es;q=0.9,en;q=0.8',
+  'Referer': 'https://finance.yahoo.com/',
+};
+
+async function fetchYahooPrice(sym, toTon, unit, name, icon) {
+  try {
+    const r = await nodeFetch(
+      `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`,
+      { headers: YF_HEADERS, timeout: 9000 }
+    );
+    if (!r.ok) return null;
+    const d = await r.json();
+    const meta = d.chart?.result?.[0]?.meta || {};
+    const cur  = meta.currency || 'USD';
+    const raw  = meta.regularMarketPrice;
+    const prev = meta.previousClose;
+    if (!raw) return null;
+    const usd  = cur === 'USX' ? raw / 100 : raw;
+    const usdP = (cur === 'USX' ? prev / 100 : prev) || usd;
+    const converted = toTon(usd);
+    const change    = ((usd - usdP) / usdP * 100).toFixed(2);
+    return { name, icon, price: converted.toFixed(2), unit, change, up: parseFloat(change) >= 0, src: 'CBOT' };
+  } catch {
+    return null;
+  }
+}
+
 app.get('/api/market', async (req, res) => {
   try {
     const commodities = [
-      { sym: 'ZS=F', name: 'Soja',   icon: '🌱', toTon: b => b * 36.744,  unit: 'USD/tn' },
-      { sym: 'ZC=F', name: 'Maíz',   icon: '🌽', toTon: b => b * 39.368,  unit: 'USD/tn' },
-      { sym: 'ZW=F', name: 'Trigo',  icon: '🌾', toTon: b => b * 36.744,  unit: 'USD/tn' },
-      { sym: 'LE=F', name: 'Vacuno', icon: '🐄', toTon: b => b / 2.2046,  unit: 'USD/kg' },
+      { sym: 'ZS=F', name: 'Soja',   icon: '🌱', toTon: b => b * 36.744, unit: 'USD/tn' },
+      { sym: 'ZC=F', name: 'Maíz',   icon: '🌽', toTon: b => b * 39.368, unit: 'USD/tn' },
+      { sym: 'ZW=F', name: 'Trigo',  icon: '🌾', toTon: b => b * 36.744, unit: 'USD/tn' },
+      { sym: 'LE=F', name: 'Vacuno', icon: '🐄', toTon: b => (b / 2.2046) * 1000, unit: 'USD/tn' },
     ];
-    const prices = await Promise.all(commodities.map(async c => {
+
+    // Intentar Yahoo Finance en paralelo
+    const results = await Promise.all(
+      commodities.map(c => fetchYahooPrice(c.sym, c.toTon, c.unit, c.name, c.icon))
+    );
+
+    let prices = results.map((r, i) => r || { ...commodities[i], price: null, change: '0.00', up: true, src: null });
+
+    // Si todos fallaron → fallback con Gemini (estimaciones aproximadas)
+    if (prices.every(p => !p.price)) {
       try {
-        const r = await nodeFetch(
-          `https://query1.finance.yahoo.com/v8/finance/chart/${c.sym}?interval=1d&range=5d`,
-          { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000 }
-        );
-        const d = await r.json();
-        const meta = d.chart?.result?.[0]?.meta || {};
-        const cur  = meta.currency || 'USD';
-        const raw  = meta.regularMarketPrice || 0;
-        const prev = meta.previousClose || raw;
-        const usd  = cur === 'USX' ? raw / 100 : raw;
-        const usdP = cur === 'USX' ? prev / 100 : prev;
-        const converted = c.toTon(usd);
-        const change    = usdP ? ((usd - usdP) / usdP * 100).toFixed(2) : '0.00';
-        return { name: c.name, icon: c.icon, price: converted.toFixed(c.sym==='LE=F'?3:1), unit: c.unit, change, up: parseFloat(change) >= 0 };
-      } catch {
-        return { name: c.name, icon: c.icon, price: null, unit: c.unit, change: '0.00', up: true };
-      }
-    }));
+        const fallback = await gemini([{ text:
+          `Dá precios actuales aproximados de commodities agrícolas internacionales en el mercado CBOT. Respondé SOLO en JSON puro:
+{"soja_usd_tn":0,"maiz_usd_tn":0,"trigo_usd_tn":0,"vacuno_usd_tn":0}
+Usá valores de referencia recientes. Sé lo más preciso posible.`
+        }], 200, true);
+        const est = JSON.parse(fallback.replace(/```json\n?|```/g, '').trim());
+        prices = [
+          { name:'Soja',   icon:'🌱', price: est.soja_usd_tn?.toFixed(2)||null,   unit:'USD/tn', change:'0.00', up:true, src:'IA estimado' },
+          { name:'Maíz',   icon:'🌽', price: est.maiz_usd_tn?.toFixed(2)||null,   unit:'USD/tn', change:'0.00', up:true, src:'IA estimado' },
+          { name:'Trigo',  icon:'🌾', price: est.trigo_usd_tn?.toFixed(2)||null,  unit:'USD/tn', change:'0.00', up:true, src:'IA estimado' },
+          { name:'Vacuno', icon:'🐄', price: est.vacuno_usd_tn?.toFixed(2)||null, unit:'USD/tn', change:'0.00', up:true, src:'IA estimado' },
+        ];
+      } catch { /* fallback falló también, quedan null */ }
+    }
+
     res.json({ prices, updated: new Date().toISOString() });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -453,26 +488,37 @@ app.get('/api/soil', async (req, res) => {
   try {
     const { lat, lon } = req.query;
     if (!lat || !lon) return res.status(400).json({ error: 'lat y lon requeridos' });
-    const r = await nodeFetch(
-      `https://rest.isric.org/soilgrids/v2.0/properties/query?lat=${lat}&lon=${lon}&property=phh2o,soc,nitrogen,clay,sand,silt&depth=0-5cm&value=mean`,
-      { headers: { 'Accept': 'application/json' }, timeout: 15000 }
-    );
-    const d = await r.json();
-    const soil = {};
-    for (const layer of (d.properties?.layers || [])) {
-      const val = layer.depths?.[0]?.values?.mean;
-      if (val != null) soil[layer.name] = { value: val, unit: layer.unit_measure?.mapped_units || '' };
-    }
-    const prompt = `Sos un ingeniero agrónomo especialista en suelos de Uruguay. Datos SoilGrids para ${lat},${lon}:
+
+    let soil = {};
+    try {
+      const r = await nodeFetch(
+        `https://rest.isric.org/soilgrids/v2.0/properties/query?lat=${lat}&lon=${lon}&property=phh2o,soc,nitrogen,clay,sand,silt&depth=0-5cm&value=mean`,
+        { headers: { 'Accept': 'application/json' }, timeout: 20000 }
+      );
+      if (r.ok) {
+        const ct = r.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const d = await r.json();
+          for (const layer of (d.properties?.layers || [])) {
+            const val = layer.depths?.[0]?.values?.mean;
+            if (val != null) soil[layer.name] = { value: val };
+          }
+        }
+      }
+    } catch { /* SoilGrids no disponible — Gemini usará solo las coords */ }
+
+    const hasSoil = Object.keys(soil).length > 0;
+    const prompt = hasSoil
+      ? `Sos un ingeniero agrónomo especialista en suelos de Uruguay. Datos SoilGrids para ${lat},${lon}:
 pH: ${soil.phh2o?.value ? (soil.phh2o.value/10).toFixed(1) : 'N/D'}
-Carbono orgánico (SOC): ${soil.soc?.value ? (soil.soc.value/10).toFixed(1) : 'N/D'} g/kg
+Carbono orgánico: ${soil.soc?.value ? (soil.soc.value/10).toFixed(1) : 'N/D'} g/kg
 Nitrógeno total: ${soil.nitrogen?.value ? (soil.nitrogen.value/100).toFixed(2) : 'N/D'} g/kg
-Arcilla: ${soil.clay?.value ? (soil.clay.value/10).toFixed(0) : 'N/D'}%
-Arena: ${soil.sand?.value ? (soil.sand.value/10).toFixed(0) : 'N/D'}%
-Limo: ${soil.silt?.value ? (soil.silt.value/10).toFixed(0) : 'N/D'}%
-Respondé en 4 puntos concisos: 1) Tipo de suelo y calidad 2) Cultivos ideales 3) Fertilizantes recomendados 4) Corrección de pH si hace falta. Lenguaje simple, práctico para el productor uruguayo.`;
+Arcilla: ${soil.clay?.value ? (soil.clay.value/10).toFixed(0) : 'N/D'}%, Arena: ${soil.sand?.value ? (soil.sand.value/10).toFixed(0) : 'N/D'}%, Limo: ${soil.silt?.value ? (soil.silt.value/10).toFixed(0) : 'N/D'}%
+Respondé en 4 puntos concisos: 1) Tipo de suelo y calidad 2) Cultivos ideales 3) Fertilizantes recomendados 4) Corrección de pH. Simple y práctico para el productor uruguayo.`
+      : `Sos un ingeniero agrónomo especialista en suelos de Uruguay. Para las coordenadas ${lat},${lon}, sin datos satelitales disponibles, describí el tipo de suelo probable según la región del país, cultivos recomendados y fertilización típica para esa zona. Respondé en 4 puntos concisos.`;
+
     const analysis = await gemini([{ text: prompt }], 500);
-    res.json({ soil, analysis });
+    res.json({ soil, analysis, fromSoilGrids: hasSoil });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -497,17 +543,20 @@ app.post('/api/alerts/scan', async (req, res) => {
     const mes = new Date().toLocaleDateString('es-UY', { month: 'long', year: 'numeric' });
     const alerts = [];
 
-    // Alertas de campo
-    for (const f of (fields || []).slice(0, 3)) {
-      const prompt = `Sos un sistema de alertas agropecuarias para Uruguay (${mes}). Campo "${f.name}", cultivo: ${f.crop||'sin especificar'}.
+    // Alertas de campo — en paralelo para que no tarde
+    const fieldAlerts = await Promise.all(
+      (fields || []).slice(0, 3).map(async f => {
+        const prompt = `Sos un sistema de alertas agropecuarias para Uruguay (${mes}). Campo "${f.name}", cultivo: ${f.crop||'sin especificar'}.
 Generá hasta 3 alertas proactivas relevantes para esta época. JSON puro:
 {"alerts":[{"tipo":"plagas|clima|fertilizacion|rotacion|siembra","nivel":"alta|media|baja","titulo":"texto corto","detalle":"1 oración","accion":"qué hacer esta semana"}]}`;
-      const text = await gemini([{ text: prompt }], 400, true);
-      try {
-        const p = JSON.parse(text.replace(/```json\n?|```/g, '').trim());
-        for (const a of (p.alerts||[])) alerts.push({ ...a, campo: f.name });
-      } catch {}
-    }
+        try {
+          const text = await gemini([{ text: prompt }], 400, true);
+          const p = JSON.parse(text.replace(/```json\n?|```/g, '').trim());
+          return (p.alerts||[]).map(a => ({ ...a, campo: f.name }));
+        } catch { return []; }
+      })
+    );
+    for (const fa of fieldAlerts) alerts.push(...fa);
 
     // Alertas de ganadería por fechas
     const hoy = new Date();
