@@ -24,6 +24,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
 details>summary{cursor:pointer;list-style:none}
 details>summary::-webkit-details-marker{display:none}
 .swatch{width:20px;height:20px;border-radius:6px;border:1px solid #d1d5db}
+.tabs-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-wrap:nowrap!important}
+.tabs-scroll::-webkit-scrollbar{display:none}
+.tabs-scroll button{flex-shrink:0;white-space:nowrap}
 @media print{
 body *{visibility:hidden}
 #printArea,#printArea *{visibility:visible}
@@ -112,7 +115,7 @@ body *{visibility:hidden}
 </div>
 </div>
 
-<div class="glass rounded-t-2xl p-2 flex gap-2 flex-wrap">
+<div class="glass rounded-t-2xl p-2 flex gap-2 tabs-scroll">
 <button id="tab-foto" class="tab-active px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('foto')">📷 Foto</button>
 <button id="tab-sat" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('sat')">🛰️ Satelital</button>
 <button id="tab-chat" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('chat')">💬 Consulta IA</button>
@@ -121,6 +124,7 @@ body *{visibility:hidden}
 <button id="tab-market" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('market')">💰 Mercado</button>
 <button id="tab-campos" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('campos')">🗺️ Mis Campos</button>
 <button id="tab-registros" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('registros')">📋 Registros</button>
+<button id="tab-clima" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('clima')">🌤️ Clima</button>
 </div>
 
 <main class="glass rounded-b-2xl p-4 md:p-6 shadow-2xl">
@@ -450,6 +454,16 @@ body *{visibility:hidden}
 </div>
 <div id="marketUpdated" class="text-xs text-gray-400 mb-4"></div>
 <div id="marketAIResult" class="hidden bg-purple-50 border border-purple-200 rounded-xl p-4 text-sm text-gray-800 whitespace-pre-wrap leading-relaxed"></div>
+
+<div class="border-t border-gray-100 pt-4 mt-4">
+  <div class="flex flex-wrap items-center gap-2 mb-3">
+    <h3 class="font-semibold text-gray-700 text-sm">🇺🇾 Precios locales Uruguay</h3>
+    <button onclick="loadMarketUY()" id="btnMarketUY" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium">🤖 Ver precios locales</button>
+    <span class="text-xs text-gray-400 italic">Estimación orientativa por IA</span>
+  </div>
+  <div id="marketUYCards" class="hidden grid grid-cols-2 md:grid-cols-3 gap-2"></div>
+  <div id="marketUYSrc" class="hidden text-xs text-gray-400 mt-2"></div>
+</div>
 </section>
 
 <!-- ─── PANEL MIS CAMPOS ───────────────────────────────────────────────────── -->
@@ -530,10 +544,35 @@ body *{visibility:hidden}
   <div class="flex flex-wrap gap-2 mb-4">
     <button onclick="runAlertScan()" id="btnAlertScan" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium">🔍 Escanear mis campos</button>
     <span class="text-xs text-gray-500 self-center">Analiza tus campos y registros y genera alertas proactivas</span>
+    <button onclick="exportRegistrosCSV()" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium">📥 Exportar CSV</button>
   </div>
   <div id="alertsList" class="space-y-3">
     <p class="text-sm text-gray-500 text-center py-6">Apretá "Escanear mis campos" para ver las alertas.</p>
   </div>
+</div>
+</section>
+
+<!-- ─── PANEL CLIMA ──────────────────────────────────────────────────────── -->
+<section id="panel-clima" class="hidden">
+<h2 class="text-lg font-semibold text-gray-800 mb-1">🌤️ Clima agrícola</h2>
+<p class="text-sm text-gray-500 mb-4">Pronóstico meteorológico para tu campo. 7 días + indicadores agronómicos (ETP, balance hídrico). Datos: Open-Meteo.</p>
+
+<div class="flex flex-wrap gap-2 mb-4">
+  <input id="climaSearch" type="text" placeholder="Lugar en Uruguay o latitud,longitud" class="flex-1 min-w-[180px] border border-gray-300 rounded-lg p-2 text-sm" onkeydown="if(event.key==='Enter')climaSearchLoc()" />
+  <button onclick="climaSearchLoc()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm">Buscar</button>
+  <button onclick="climaMyLocation()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">📍 Mi ubicación</button>
+</div>
+
+<div id="climaLoading" class="hidden text-emerald-700 pulse-dot text-sm py-4 text-center">⏳ Cargando datos meteorológicos...</div>
+<div id="climaError" class="hidden text-red-600 text-sm py-4 text-center"></div>
+
+<div id="climaContent" class="hidden space-y-4">
+  <div id="climaCurrent" class="bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-200 rounded-xl p-4"></div>
+  <div>
+    <h3 class="font-semibold text-gray-700 mb-2 text-sm">📅 Pronóstico 7 días</h3>
+    <div id="climaForecast" class="grid grid-cols-7 gap-1"></div>
+  </div>
+  <div id="climaAgro" class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm"></div>
 </div>
 </section>
 
@@ -552,7 +591,7 @@ function safeToken(){
 }
 function authHeader(){return{'content-type':'application/json','Authorization':'Bearer '+safeToken()};}
 
-function switchTab(n){['foto','sat','chat','weed','cow','market','campos','registros'].forEach(t=>{document.getElementById('panel-'+t).classList.add('hidden');const b=document.getElementById('tab-'+t);b.classList.remove('tab-active');b.classList.add('tab-inactive')});document.getElementById('panel-'+n).classList.remove('hidden');const a=document.getElementById('tab-'+n);a.classList.remove('tab-inactive');a.classList.add('tab-active');if(n==='sat'){if(!window.mapInited)initMap();else setTimeout(()=>{if(map){map.invalidateSize();}},100);}if(n==='foto')loadWeather();if(n==='market'&&!window.marketLoaded)loadMarket();if(n==='campos')renderFields();if(n==='registros')renderLivestock();}
+function switchTab(n){['foto','sat','chat','weed','cow','market','campos','registros','clima'].forEach(t=>{document.getElementById('panel-'+t).classList.add('hidden');const b=document.getElementById('tab-'+t);b.classList.remove('tab-active');b.classList.add('tab-inactive')});document.getElementById('panel-'+n).classList.remove('hidden');const a=document.getElementById('tab-'+n);a.classList.remove('tab-inactive');a.classList.add('tab-active');if(n==='sat'){if(!window.mapInited)initMap();else setTimeout(()=>{if(map){map.invalidateSize();}},100);}if(n==='foto')loadWeather();if(n==='market'&&!window.marketLoaded)loadMarket();if(n==='campos')renderFields();if(n==='registros')renderLivestock();if(n==='clima'&&!window.climaLoaded)loadClima();}
 
 const drop=document.getElementById('dropZone'),fileInput=document.getElementById('fileInput'),previewBox=document.getElementById('previewBox'),btnAnalyze=document.getElementById('btnAnalyze');
 const drop2=document.getElementById('dropZone2'),fileInput2=document.getElementById('fileInput2');
@@ -1735,8 +1774,24 @@ async function doRegister(){
     const r=await fetch('/api/auth/register',{method:'POST',headers:{'content-type':'application/json','Authorization':'Bearer '+safeToken()},body:jbody({nombre,email,password})});
     const d=await r.json();
     if(!r.ok){errEl.textContent=d.error||'Error al registrarse.';errEl.classList.remove('hidden');return}
-    okEl.textContent='¡Cuenta creada! Ahora ingresá con tu email y contraseña.';okEl.classList.remove('hidden');
-    setTimeout(()=>switchAuthTab('login'),2000);
+    okEl.textContent='✅ ¡Cuenta creada! Ingresando automáticamente...';okEl.classList.remove('hidden');
+    // Auto-login después del registro
+    try{
+      const lr=await fetch('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:jbody({email,password})});
+      const ld=await lr.json();
+      if(lr.ok){
+        localStorage.setItem('agroToken',ld.token);
+        localStorage.setItem('agroUser',JSON.stringify(ld.user));
+        updateUserUI(ld.user);
+        setTimeout(()=>{closeAuthModal();syncUserDataFromServer();},800);
+      }else{
+        okEl.textContent='✅ ¡Cuenta creada! Ahora iniciá sesión.';
+        setTimeout(()=>switchAuthTab('login'),1800);
+      }
+    }catch{
+      okEl.textContent='✅ ¡Cuenta creada! Ahora iniciá sesión.';
+      setTimeout(()=>switchAuthTab('login'),1800);
+    }
   }catch(e){errEl.textContent='Error de red. Intentá de nuevo.';errEl.classList.remove('hidden')}
 }
 
@@ -1880,6 +1935,7 @@ function renderFields(){
         ${f.notes?`<div class="text-xs text-gray-500 mt-1">${f.notes}</div>`:''}
       </div>
       <div class="flex gap-2 flex-wrap">
+        ${f.lat?`<button onclick="viewFieldOnMap(${f.lat},${f.lon})" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-lg font-medium">🛰️ Ver mapa</button>`:''}
         ${f.lat?`<button onclick="analyzeSoil('${f.id}')" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg font-medium">🔬 Suelo</button>`:''}
         <button onclick="deleteField('${f.id}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded-lg">🗑️</button>
       </div>
@@ -2046,6 +2102,178 @@ async function syncUserDataFromServer(){
       if(serverTotal>localTotal)localStorage.setItem('agroUserData',JSON.stringify(d.data));
     }
   }catch{}
+}
+
+// ═══════════════════════════════════════════════════════════
+// MIS CAMPOS — Ver en mapa satelital
+// ═══════════════════════════════════════════════════════════
+function viewFieldOnMap(lat, lon) {
+  switchTab('sat');
+  setTimeout(() => {
+    if (map) { map.setView([lat, lon], 13); showSatAnalysis(lat, lon); }
+  }, window.mapInited ? 150 : 900);
+}
+
+// ═══════════════════════════════════════════════════════════
+// REGISTROS — Exportar CSV
+// ═══════════════════════════════════════════════════════════
+function exportRegistrosCSV(){
+  const data=getUserData();
+  const recs=data.livestock||[];
+  if(!recs.length){alert('No hay registros para exportar.');return}
+  const headers=['Lote','Tipo','Descripción','Cantidad','Fecha','Próxima','Estado'];
+  const rows=recs.map(r=>[r.lote,r.tipo,r.descripcion,r.cantidad||'',r.fecha,r.proxima||'',r.completado?'Completado':'Pendiente'].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+  const csv='﻿'+[headers.join(','),...rows].join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`registros_agrovision_${new Date().toLocaleDateString('es-UY').replace(/\//g,'-')}.csv`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════════════
+// MERCADO — Precios locales Uruguay
+// ═══════════════════════════════════════════════════════════
+async function loadMarketUY(){
+  const btn=document.getElementById('btnMarketUY');
+  const out=document.getElementById('marketUYCards');
+  const src=document.getElementById('marketUYSrc');
+  btn.disabled=true;btn.textContent='⏳ Consultando...';
+  try{
+    const r=await fetch('/api/market/uy');
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'Error');
+    const dd=d.data;
+    const items=[
+      {label:'Novillo gordo',val:`$${dd.novillo_vivo_pesos_kg}/kg vivo`,icon:'🐄'},
+      {label:'Soja Montevideo',val:`USD ${dd.soja_usd_tn}/tn`,icon:'🌱'},
+      {label:'Trigo Montevideo',val:`USD ${dd.trigo_usd_tn}/tn`,icon:'🌾'},
+      {label:'Maíz Montevideo',val:`USD ${dd.maiz_usd_tn}/tn`,icon:'🌽'},
+      {label:'Lana base limpia',val:`USD ${dd.lana_usd_kg_base_limpia}/kg`,icon:'🐑'},
+      {label:'Gasoil',val:`$${dd.gasoil_pesos_litro}/litro`,icon:'⛽'},
+    ];
+    out.innerHTML=items.map(i=>`<div class="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-center"><div class="text-2xl mb-1">${i.icon}</div><div class="font-semibold text-gray-700 text-xs">${i.label}</div><div class="font-bold text-indigo-700 text-sm mt-1">${i.val}</div></div>`).join('');
+    src.textContent=`${d.src} · TC ref: $${dd.tipo_cambio_ref}/USD`;
+    out.classList.remove('hidden');src.classList.remove('hidden');
+  }catch(e){
+    out.innerHTML=`<div class="col-span-3 text-center text-red-500 text-sm py-4">Error: ${e.message}</div>`;
+    out.classList.remove('hidden');
+  }
+  btn.disabled=false;btn.textContent='🔄 Actualizar';
+}
+
+// ═══════════════════════════════════════════════════════════
+// CLIMA
+// ═══════════════════════════════════════════════════════════
+const WMO_LABEL={0:'☀️ Despejado',1:'🌤️ Mayormente despejado',2:'⛅ Parcialmente nublado',3:'☁️ Nublado',45:'🌫️ Neblina',48:'🌫️ Neblina c/escarcha',51:'🌦️ Llovizna leve',53:'🌦️ Llovizna moderada',55:'🌦️ Llovizna intensa',61:'🌧️ Lluvia leve',63:'🌧️ Lluvia moderada',65:'🌧️ Lluvia intensa',71:'❄️ Nevada leve',73:'❄️ Nevada moderada',75:'❄️ Nevada intensa',80:'🌦️ Chubascos leves',81:'🌦️ Chubascos moderados',82:'🌦️ Chubascos fuertes',95:'⛈️ Tormenta',96:'⛈️ Tormenta c/granizo',99:'⛈️ Tormenta granizo fuerte'};
+const WMO_ICO={0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌦️',61:'🌧️',63:'🌧️',65:'🌧️',71:'❄️',73:'❄️',75:'❄️',80:'🌦️',81:'🌦️',82:'🌦️',95:'⛈️',96:'⛈️',99:'⛈️'};
+let climaLat=-32.5228,climaLon=-55.7658;
+
+async function loadClima(){
+  document.getElementById('climaLoading').classList.remove('hidden');
+  document.getElementById('climaContent').classList.add('hidden');
+  climaMyLocation();
+}
+
+function climaMyLocation(){
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      p=>fetchClima(p.coords.latitude.toFixed(4),p.coords.longitude.toFixed(4)),
+      ()=>fetchClima(climaLat,climaLon),{timeout:5000}
+    );
+  }else fetchClima(climaLat,climaLon);
+}
+
+async function climaSearchLoc(){
+  const q=document.getElementById('climaSearch').value.trim();if(!q)return;
+  const m=q.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
+  if(m){fetchClima(parseFloat(m[1]),parseFloat(m[2]));return}
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q+', Uruguay')}&countrycodes=uy&limit=1`);
+    const d=await r.json();
+    if(d.length)fetchClima(parseFloat(d[0].lat),parseFloat(d[0].lon));
+    else alert('No se encontró el lugar.');
+  }catch(e){alert('Error: '+e.message)}
+}
+
+async function fetchClima(lat,lon){
+  climaLat=lat;climaLon=lon;
+  document.getElementById('climaLoading').classList.remove('hidden');
+  document.getElementById('climaContent').classList.add('hidden');
+  document.getElementById('climaError').classList.add('hidden');
+  try{
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m,wind_direction_10m,surface_pressure,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,et0_fao_evapotranspiration,weather_code&timezone=America%2FMontevideo&forecast_days=7`;
+    const r=await fetch(url);
+    if(!r.ok)throw new Error('Error meteorológico');
+    const d=await r.json();
+    renderClima(d,lat,lon);
+    window.climaLoaded=true;
+  }catch(e){
+    document.getElementById('climaError').textContent='❌ No se pudieron cargar datos meteorológicos. Verificá tu conexión.';
+    document.getElementById('climaError').classList.remove('hidden');
+  }
+  document.getElementById('climaLoading').classList.add('hidden');
+}
+
+function windDir(deg){const dirs=['N','NE','E','SE','S','SO','O','NO'];return dirs[Math.round(deg/45)%8]}
+
+function renderClima(d,lat,lon){
+  const c=d.current;const daily=d.daily;
+  // Condiciones actuales
+  document.getElementById('climaCurrent').innerHTML=`
+    <div class="flex flex-wrap gap-4 items-center">
+      <div class="text-center min-w-[80px]">
+        <div class="text-5xl">${WMO_ICO[c.weather_code]||'🌡️'}</div>
+        <div class="text-3xl font-bold text-sky-800 mt-1">${c.temperature_2m}°C</div>
+        <div class="text-xs text-sky-600 mt-0.5">Sensación ${c.apparent_temperature}°C</div>
+      </div>
+      <div class="flex-1 grid grid-cols-2 gap-2 text-sm min-w-[200px]">
+        <div class="bg-white/70 rounded-lg p-2 text-center"><div class="text-blue-600 font-bold text-base">💧 ${c.relative_humidity_2m}%</div><div class="text-xs text-gray-500">Humedad</div></div>
+        <div class="bg-white/70 rounded-lg p-2 text-center"><div class="text-blue-600 font-bold text-base">🌧️ ${c.precipitation}mm</div><div class="text-xs text-gray-500">Precipitación</div></div>
+        <div class="bg-white/70 rounded-lg p-2 text-center"><div class="text-blue-600 font-bold text-base">💨 ${c.wind_speed_10m}km/h</div><div class="text-xs text-gray-500">${windDir(c.wind_direction_10m)}</div></div>
+        <div class="bg-white/70 rounded-lg p-2 text-center"><div class="text-blue-600 font-bold text-base">⬆️ ${Math.round(c.surface_pressure)}hPa</div><div class="text-xs text-gray-500">Presión</div></div>
+      </div>
+    </div>
+    <div class="text-xs text-sky-700 mt-2 text-center">${WMO_LABEL[c.weather_code]||''} · 📍 ${parseFloat(lat).toFixed(3)}, ${parseFloat(lon).toFixed(3)}</div>`;
+  // Pronóstico 7 días
+  const dayNames=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  document.getElementById('climaForecast').innerHTML=daily.time.map((t,i)=>{
+    const date=new Date(t+'T12:00:00');
+    const dayName=i===0?'Hoy':dayNames[date.getDay()];
+    const rain=daily.precipitation_sum[i];
+    const rainProb=daily.precipitation_probability_max[i];
+    return`<div class="bg-white border ${rain>5?'border-blue-300 bg-blue-50':'border-gray-200'} rounded-xl p-2 text-center text-xs">
+      <div class="font-semibold text-gray-600 mb-1 truncate">${dayName}</div>
+      <div class="text-2xl">${WMO_ICO[daily.weather_code[i]]||'⛅'}</div>
+      <div class="font-bold text-red-500 mt-1">${Math.round(daily.temperature_2m_max[i])}°</div>
+      <div class="text-blue-500">${Math.round(daily.temperature_2m_min[i])}°</div>
+      ${rainProb>20?`<div class="text-blue-600 mt-1 font-medium">${rainProb}%</div>`:''}
+      ${rain>0.1?`<div class="text-blue-500">${rain.toFixed(1)}mm</div>`:''}
+    </div>`;
+  }).join('');
+  // Indicadores agronómicos
+  const totalLluvia=daily.precipitation_sum.reduce((a,b)=>a+b,0).toFixed(1);
+  const totalETP=(daily.et0_fao_evapotranspiration||[]).reduce((a,b)=>a+(b||0),0).toFixed(1);
+  const balance=(parseFloat(totalLluvia)-parseFloat(totalETP)).toFixed(1);
+  const balColor=balance<-20?'text-red-600':balance<0?'text-orange-500':'text-emerald-600';
+  let alertaAgro='';
+  if(parseFloat(balance)<-20)alertaAgro='<div class="mt-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">⚠️ <b>Déficit hídrico moderado.</b> Considerar riego suplementario si hay cultivos implantados.</div>';
+  else if(parseFloat(balance)>40)alertaAgro='<div class="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">💧 <b>Exceso hídrico.</b> Vigilar anegamientos y enfermedades fúngicas en pasturas.</div>';
+  const diasHelada=daily.temperature_2m_min.filter(t=>t<=1).length;
+  if(diasHelada>0)alertaAgro+=`<div class="mt-2 p-2 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-800">🌡️ <b>${diasHelada} día(s) con riesgo de helada</b> en los próximos 7 días. Proteger cultivos sensibles.</div>`;
+  document.getElementById('climaAgro').innerHTML=`
+    <h4 class="font-semibold text-amber-900 mb-3">🌾 Indicadores agronómicos — próximos 7 días</h4>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+      <div class="bg-white rounded-lg p-2"><div class="font-bold text-blue-700 text-xl">${totalLluvia}mm</div><div class="text-xs text-gray-500">Lluvia acumulada</div></div>
+      <div class="bg-white rounded-lg p-2"><div class="font-bold text-amber-600 text-xl">${totalETP}mm</div><div class="text-xs text-gray-500">ETP (Penman-Monteith)</div></div>
+      <div class="bg-white rounded-lg p-2"><div class="font-bold ${balColor} text-xl">${balance>0?'+':''}${balance}mm</div><div class="text-xs text-gray-500">Balance hídrico</div></div>
+      <div class="bg-white rounded-lg p-2"><div class="font-bold text-purple-600 text-xl">${(daily.wind_speed_10m_max||[0])[0].toFixed(0)}km/h</div><div class="text-xs text-gray-500">Viento máx hoy</div></div>
+    </div>
+    ${alertaAgro}
+    <p class="text-xs text-gray-400 mt-3">Datos: Open-Meteo (WMO) · ETP: Penman-Monteith FAO-56 · Actualizado en tiempo real</p>`;
+  document.getElementById('climaContent').classList.remove('hidden');
 }
 
 // Restaurar sesión al cargar

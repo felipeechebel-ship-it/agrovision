@@ -589,6 +589,20 @@ Generá hasta 3 alertas proactivas relevantes para esta época. JSON puro:
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── MERCADO: precios locales Uruguay (Gemini estimado) ──────────────────────
+app.get('/api/market/uy', async (req, res) => {
+  try {
+    const mes = new Date().toLocaleDateString('es-UY', { month: 'long', year: 'numeric' });
+    const text = await gemini([{ text:
+      `Sos un analista de mercados agropecuarios de Uruguay. Para ${mes}, estimá los precios de referencia locales más actuales.
+Respondé SOLO en JSON puro (sin texto extra):
+{"novillo_vivo_pesos_kg":0,"soja_usd_tn":0,"trigo_usd_tn":0,"maiz_usd_tn":0,"lana_usd_kg_base_limpia":0,"gasoil_pesos_litro":0,"tipo_cambio_ref":0}`
+    }], 300, true);
+    const data = JSON.parse(text.replace(/```json\n?|```/g, '').trim());
+    res.json({ data, mes, src: 'IA estimado · referencia orientativa' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 app.get('/health', (_, res) => res.json({ status: 'ok', model: GEMINI_MODEL }));
 
