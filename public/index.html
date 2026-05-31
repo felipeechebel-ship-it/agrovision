@@ -237,7 +237,7 @@ body *{visibility:hidden}
         <span class="ml-auto bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded-full">OFERTA</span>
       </div>
       <p class="text-yellow-800 text-xs">Probá cualquier plan pago <b>15 días gratis</b>, sin cargo. Acceso completo a todos los servicios. Cancelás cuando querés.</p>
-      <button onclick="contactarPlan('Prueba 15 días gratis')" class="mt-2 w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-2 rounded-lg text-sm transition">🎁 Activar mi prueba gratis de 15 días</button>
+      <button onclick="startPayment('standard')" class="mt-2 w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-2 rounded-lg text-sm transition">🎁 Activar mi prueba gratis de 15 días</button>
     </div>
   </div>
 
@@ -307,7 +307,7 @@ body *{visibility:hidden}
         </div>
       </div>
       <div id="planCurrentPro" class="hidden mt-3 text-center text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg py-1.5 font-medium">✅ Tu plan actual</div>
-      <button id="btnContratarPro" onclick="contactarPlan('Standard')" class="hidden mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-lg text-sm transition">🎁 Probar Standard gratis 15 días</button>
+      <button id="btnContratarPro" onclick="startPayment('standard')" class="hidden mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-lg text-sm transition">🎁 Probar Standard gratis 15 días</button>
     </div>
 
     <!-- Plan Familia -->
@@ -341,7 +341,7 @@ body *{visibility:hidden}
         </div>
       </div>
       <div id="planCurrentFamilia" class="hidden mt-3 text-center text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg py-1.5 font-medium">✅ Tu plan actual</div>
-      <button id="btnContratarFamilia" onclick="contactarPlan('Pro')" class="hidden mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg text-sm transition">🎁 Probar Pro gratis 15 días</button>
+      <button id="btnContratarFamilia" onclick="startPayment('pro')" class="hidden mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg text-sm transition">🎁 Probar Pro gratis 15 días</button>
     </div>
 
   </div>
@@ -2472,6 +2472,38 @@ function openPlanesModal(){
   }
 }
 function closePlanesModal(){document.getElementById('planesModal').classList.remove('open')}
+async function startPayment(plan){
+  // Verificar que el usuario esté logueado
+  const tok=localStorage.getItem('agroToken');
+  if(!tok){
+    closePlanesModal();
+    setTimeout(()=>openAuthModal(),200);
+    return;
+  }
+  // Buscar el botón que disparó la acción y poner loading
+  const btnMap={standard:'btnContratarPro',pro:'btnContratarFamilia'};
+  const btn=document.getElementById(btnMap[plan]);
+  const trialBtn=document.querySelector('#trialBanner button');
+  const origText=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Cargando...';}
+  if(trialBtn&&trialBtn!==btn){trialBtn.disabled=true;}
+  try{
+    const r=await fetch('/api/payment/create',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},
+      body:JSON.stringify({plan})
+    });
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.error||'Error al iniciar pago');
+    // Redirigir a MercadoPago checkout
+    window.location.href=d.url;
+  }catch(e){
+    alert('No se pudo iniciar el pago: '+e.message);
+    if(btn){btn.disabled=false;btn.textContent=origText;}
+    if(trialBtn&&trialBtn!==btn){trialBtn.disabled=false;}
+  }
+}
+
 function contactarPlan(nombre){
   const email=encodeURIComponent('hola@agrovision.uy');
   const esCuenta=JSON.parse(localStorage.getItem('agroUserData')||'{}');
@@ -3155,6 +3187,52 @@ window.addEventListener('DOMContentLoaded',()=>{
     }
   }
 });
+
+// ─── RESULTADO DE PAGO ──────────────────────────────────────────────────────
+(function handlePaymentReturn(){
+  const params=new URLSearchParams(window.location.search);
+  const status=params.get('payment');
+  if(!status) return;
+  // Limpiar el parámetro de la URL sin recargar
+  const clean=window.location.pathname;
+  history.replaceState({},'',clean);
+  // Mostrar toast
+  if(status==='success'){
+    const plan=params.get('plan')||'';
+    const nombre={standard:'Standard',pro:'Pro'}[plan]||'nuevo';
+    showToast(`¡Pago aprobado! Tu plan ${nombre} ya está activo.`,'success');
+    // Refrescar datos del usuario para reflejar el nuevo plan
+    const tok=localStorage.getItem('agroToken');
+    if(tok){
+      fetch('/api/auth/me',{headers:{'Authorization':'Bearer '+tok}})
+        .then(r=>r.ok?r.json():null)
+        .then(d=>{if(d&&d.user){localStorage.setItem('agroUser',JSON.stringify(d.user));updateUserUI(d.user);}})
+        .catch(()=>{});
+    }
+  }else if(status==='failure'){
+    showToast('El pago no pudo procesarse. Intentá de nuevo o contactá soporte.','error');
+  }else if(status==='pending'){
+    showToast('Tu pago está pendiente de aprobación. Te avisaremos cuando se confirme.','warn');
+  }
+})();
+
+function showToast(msg,type='success'){
+  const colors={success:'#16a34a',error:'#dc2626',warn:'#d97706'};
+  const t=document.createElement('div');
+  t.style.cssText=`position:fixed;top:calc(env(safe-area-inset-top,0px)+70px);left:50%;transform:translateX(-50%);
+    background:${colors[type]};color:#fff;padding:12px 22px;border-radius:12px;font-size:14px;font-weight:600;
+    box-shadow:0 4px 20px rgba(0,0,0,.3);z-index:99999;max-width:90vw;text-align:center;
+    animation:fadeInDown .35s ease`;
+  t.textContent=msg;
+  if(!document.querySelector('#toastStyles')){
+    const s=document.createElement('style');
+    s.id='toastStyles';
+    s.textContent='@keyframes fadeInDown{from{opacity:0;transform:translateX(-50%) translateY(-12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+    document.head.appendChild(s);
+  }
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),5000);
+}
 </script>
 </body>
 </html>

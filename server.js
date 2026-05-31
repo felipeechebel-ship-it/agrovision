@@ -13,6 +13,8 @@ const PLANET_KEY   = process.env.PLANET_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const SUPA_URL     = process.env.SUPABASE_URL;
 const SUPA_KEY     = process.env.SUPABASE_SECRET_KEY;
+const MP_TOKEN     = process.env.MP_ACCESS_TOKEN;   // MercadoPago Access Token
+const APP_URL      = process.env.APP_URL || 'https://agrovision.up.railway.app'; // URL pública de Railway
 
 // ─── Helpers REST directo a Supabase (sin @supabase/supabase-js ni auth-js) ──
 
@@ -688,6 +690,114 @@ app.get('/icon-512.png', (_, res) => {
   res.set('Cache-Control', 'public, max-age=86400');
   res.send(iconSvg);
 });
+
+// ─── PAGOS: MercadoPago ───────────────────────────────────────────────────────
+
+const PLANES = {
+  standard: { nombre: 'AgroVisión Standard', precio: 12, moneda: 'USD', plan_db: 'pro' },
+  pro:      { nombre: 'AgroVisión Pro',      precio: 26, moneda: 'USD', plan_db: 'familia' }
+};
+
+// Crear preferencia de pago MP
+app.post('/api/payment/create', checkAuth, async (req, res) => {
+  try {
+    if (!MP_TOKEN) return res.status(503).json({ error: 'Pagos no configurados aún. Contactá a hola@agrovision.uy' });
+    const { plan } = req.body;
+    if (!PLANES[plan]) return res.status(400).json({ error: 'Plan inválido' });
+    const p = PLANES[plan];
+
+    const body = {
+      items: [{
+        id: plan,
+        title: p.nombre,
+        description: `Suscripción mensual — 15 días de prueba gratis`,
+        quantity: 1,
+        currency_id: p.moneda,
+        unit_price: p.precio
+      }],
+      payer: req.user ? { email: req.user.email } : {},
+      back_urls: {
+        success: `${APP_URL}/payment/success?plan=${plan}&uid=${req.user?.id || ''}`,
+        failure: `${APP_URL}/payment/failure`,
+        pending: `${APP_URL}/payment/pending`
+      },
+      auto_return: 'approved',
+      external_reference: JSON.stringify({ plan, uid: req.user?.id || '' }),
+      statement_descriptor: 'AGROVISION',
+      expires: false
+    };
+
+    const mpRes = await nodeFetch('https://api.mercadopago.com/checkout/preferences', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${MP_TOKEN}`,
+        'Content-Type': 'application/json',
+        'X-Idempotency-Key': `${req.user?.id || 'anon'}-${plan}-${Date.now()}`
+      },
+      body: JSON.stringify(body)
+    });
+    const mpData = await mpRes.json();
+    if (!mpRes.ok) {
+      console.error('MP error:', mpData);
+      return res.status(500).json({ error: 'Error creando pago: ' + (mpData.message || mpRes.status) });
+    }
+    res.json({ url: mpData.init_point, sandbox_url: mpData.sandbox_init_point, id: mpData.id });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Webhook MP — notificación de pago aprobado
+app.post('/api/payment/webhook', express.raw({ type: '*/*' }), async (req, res) => {
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const { type, data } = body;
+    if (type !== 'payment') return res.sendStatus(200);
+
+    const pmtRes = await nodeFetch(`https://api.mercadopago.com/v1/payments/${data.id}`, {
+      headers: { 'Authorization': `Bearer ${MP_TOKEN}` }
+    });
+    const pmt = await pmtRes.json();
+
+    if (pmt.status === 'approved') {
+      let ref = {};
+      try { ref = JSON.parse(pmt.external_reference || '{}'); } catch {}
+      const { plan, uid } = ref;
+      if (uid && plan && PLANES[plan]) {
+        const planDb = PLANES[plan].plan_db;
+        await dbUpdate('profiles', { id: uid }, {
+          plan: planDb,
+          plan_expires: new Date(Date.now() + 32 * 86400000).toISOString(), // +32 días (30 + 2 buffer)
+          analisis_hoy: 0
+        });
+        console.log(`Plan actualizado: usuario ${uid} → ${planDb}`);
+      }
+    }
+    res.sendStatus(200);
+  } catch (e) {
+    console.error('Webhook error:', e.message);
+    res.sendStatus(200); // siempre 200 para MP
+  }
+});
+
+// Callback de retorno exitoso — actualiza plan por URL (backup del webhook)
+app.get('/payment/success', async (req, res) => {
+  const { plan, uid, payment_id, status } = req.query;
+  if (uid && plan && PLANES[plan] && status === 'approved') {
+    try {
+      await dbUpdate('profiles', { id: uid }, {
+        plan: PLANES[plan].plan_db,
+        plan_expires: new Date(Date.now() + 32 * 86400000).toISOString(),
+        analisis_hoy: 0
+      });
+    } catch {}
+  }
+  // Redirigir a la app con mensaje de éxito
+  res.redirect(`${APP_URL}/?payment=success&plan=${plan || ''}`);
+});
+
+app.get('/payment/failure', (_, res) => res.redirect(`${APP_URL}/?payment=failure`));
+app.get('/payment/pending', (_, res) => res.redirect(`${APP_URL}/?payment=pending`));
 
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 app.get('/health', (_, res) => res.json({ status: 'ok', model: GEMINI_MODEL }));
