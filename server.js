@@ -115,8 +115,22 @@ async function checkAuth(req, res, next) {
     const user = await authGetUser(token);
     if (!user) return next();
 
-    const profile = await dbGet('profiles', { id: user.id });
-    if (profile) req.user = profile;
+    let profile = await dbGet('profiles', { id: user.id });
+    if (profile) {
+      req.user = profile;
+    } else {
+      // Token válido pero sin perfil → crear perfil y tratar como free
+      const newProfile = {
+        id: user.id,
+        email: user.email || '',
+        nombre: user.user_metadata?.nombre || user.email?.split('@')[0] || '',
+        plan: 'free',
+        analisis_hoy: 0,
+        fecha_reset: new Date().toISOString()
+      };
+      await dbInsert('profiles', newProfile);
+      req.user = newProfile;
+    }
   } catch (e) {
     // token inválido → usuario anónimo
   }
