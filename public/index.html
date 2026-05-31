@@ -117,7 +117,7 @@ body *{visibility:hidden}
 
 <!-- ─── MODAL PLANES ──────────────────────────────────────────────────────── -->
 <div id="planesModal" role="dialog" aria-modal="true">
-<div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+<div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" style="max-height:92vh;overflow-y:auto">
   <div class="leaf-bg px-6 pt-6 pb-4">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2"><div class="text-3xl">🌱</div><span class="text-white font-bold text-lg">Planes AgroVisión</span></div>
@@ -125,6 +125,20 @@ body *{visibility:hidden}
     </div>
     <p class="text-emerald-100 text-xs mt-1">Elegí el plan que mejor se adapta a tu campo</p>
   </div>
+
+  <!-- Banner oferta 15 días gratis -->
+  <div id="trialBanner" class="mx-5 mt-4 rounded-xl overflow-hidden border-2 border-yellow-400" style="background:linear-gradient(135deg,#fef9c3,#fef3c7)">
+    <div class="px-4 py-3">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-2xl">🎁</span>
+        <span class="font-bold text-yellow-900 text-sm">¡15 días gratis de todo!</span>
+        <span class="ml-auto bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded-full">OFERTA</span>
+      </div>
+      <p class="text-yellow-800 text-xs">Probá cualquier plan pago <b>15 días gratis</b>, sin cargo. Acceso completo a todos los servicios. Cancelás cuando querés.</p>
+      <button onclick="contactarPlan('Prueba 15 días gratis')" class="mt-2 w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-2 rounded-lg text-sm transition">🎁 Activar mi prueba gratis de 15 días</button>
+    </div>
+  </div>
+
   <div class="p-5 space-y-3" id="planesContent">
     <!-- Plan Gratis -->
     <div id="planCard-free" class="border-2 border-gray-200 rounded-xl p-4">
@@ -147,7 +161,10 @@ body *{visibility:hidden}
       <div class="absolute -top-2.5 right-4 bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">RECOMENDADO</div>
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-2"><span class="text-xl">🚀</span><span class="font-bold text-gray-800">Pro</span></div>
-        <span class="text-lg font-bold text-emerald-700">$6 USD <span class="text-xs font-normal">/ mes</span></span>
+        <div class="text-right">
+          <div class="text-lg font-bold text-emerald-700">$6 USD <span class="text-xs font-normal">/ mes</span></div>
+          <div class="text-xs text-yellow-600 font-semibold">🎁 15 días gratis</div>
+        </div>
       </div>
       <ul class="text-xs text-gray-600 space-y-1">
         <li>✅ <b>Análisis de foto ilimitados</b></li>
@@ -158,13 +175,16 @@ body *{visibility:hidden}
         <li>✅ Soporte prioritario</li>
       </ul>
       <div id="planCurrentPro" class="hidden mt-3 text-center text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg py-1.5 font-medium">✅ Tu plan actual</div>
-      <button id="btnContratarPro" onclick="contactarPlan('Pro')" class="hidden mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-lg text-sm transition">🚀 Quiero el plan Pro</button>
+      <button id="btnContratarPro" onclick="contactarPlan('Pro')" class="hidden mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-lg text-sm transition">🎁 Probar Pro gratis 15 días</button>
     </div>
     <!-- Plan Familia -->
     <div class="border-2 border-blue-300 rounded-xl p-4">
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-2"><span class="text-xl">👨‍👩‍👧</span><span class="font-bold text-gray-800">Familia / Establecimiento</span></div>
-        <span class="text-lg font-bold text-blue-700">$15 USD <span class="text-xs font-normal">/ mes</span></span>
+        <div class="text-right">
+          <div class="text-lg font-bold text-blue-700">$15 USD <span class="text-xs font-normal">/ mes</span></div>
+          <div class="text-xs text-yellow-600 font-semibold">🎁 15 días gratis</div>
+        </div>
       </div>
       <ul class="text-xs text-gray-600 space-y-1">
         <li>✅ <b>Todo lo de Pro</b></li>
@@ -174,7 +194,7 @@ body *{visibility:hidden}
         <li>✅ Reportes mensuales automáticos</li>
       </ul>
       <div id="planCurrentFamilia" class="hidden mt-3 text-center text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg py-1.5 font-medium">✅ Tu plan actual</div>
-      <button id="btnContratarFamilia" onclick="contactarPlan('Familia')" class="hidden mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg text-sm transition">👨‍👩‍👧 Quiero el plan Familia</button>
+      <button id="btnContratarFamilia" onclick="contactarPlan('Familia')" class="hidden mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg text-sm transition">🎁 Probar Familia gratis 15 días</button>
     </div>
   </div>
   <div class="px-5 pb-5 text-center text-xs text-gray-400">¿Preguntas? Escribinos a <a href="mailto:hola@agrovision.uy" class="text-emerald-600 underline">hola@agrovision.uy</a></div>
@@ -1965,19 +1985,31 @@ function openPlanesModal(){
   });
   document.getElementById('planCurrent'+plan.charAt(0).toUpperCase()+plan.slice(1))?.classList.remove('hidden');
   // Mostrar botones de contratar solo para planes superiores al actual
+  const trial=document.getElementById('trialBanner');
   if(plan==='free'){
     document.getElementById('btnContratarPro')?.classList.remove('hidden');
     document.getElementById('btnContratarFamilia')?.classList.remove('hidden');
+    trial?.classList.remove('hidden');
   }else if(plan==='pro'){
     document.getElementById('btnContratarFamilia')?.classList.remove('hidden');
+    trial?.classList.add('hidden');
+  }else{
+    trial?.classList.add('hidden');
   }
 }
 function closePlanesModal(){document.getElementById('planesModal').classList.remove('open')}
 function contactarPlan(nombre){
   const email=encodeURIComponent('hola@agrovision.uy');
-  const subject=encodeURIComponent(`Quiero contratar el plan ${nombre} de AgroVisión`);
-  const body=encodeURIComponent(`Hola! Me interesa el plan ${nombre} de AgroVisión.\n\nMi email de cuenta: \nNombre: \n\nQuedo a la espera. ¡Gracias!`);
-  window.open(`mailto:${email}?subject=${subject}&body=${body}`,'_blank');
+  const esCuenta=JSON.parse(localStorage.getItem('agroUserData')||'{}');
+  const miEmail=esCuenta.email||'';
+  const esPrueba=nombre.includes('Prueba') || nombre.includes('gratis');
+  const subject=esPrueba
+    ? encodeURIComponent('Quiero activar mi prueba gratis de 15 días — AgroVisión')
+    : encodeURIComponent(`Quiero el plan ${nombre} — AgroVisión`);
+  const body=esPrueba
+    ? encodeURIComponent(`Hola! Quiero activar mi prueba gratuita de 15 días en AgroVisión.\n\nMi email de cuenta: ${miEmail}\n\nQuedo a la espera. ¡Gracias!`)
+    : encodeURIComponent(`Hola! Me interesa el plan ${nombre} de AgroVisión (incluye 15 días gratis).\n\nMi email de cuenta: ${miEmail}\n\nQuedo a la espera. ¡Gracias!`);
+  window.open(`mailto:hola@agrovision.uy?subject=${subject}&body=${body}`,'_blank');
 }
 
 function openAuthModal(tab='login'){
