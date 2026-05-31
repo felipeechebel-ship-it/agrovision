@@ -140,62 +140,108 @@ body *{visibility:hidden}
   </div>
 
   <div class="p-5 space-y-3" id="planesContent">
+
     <!-- Plan Gratis -->
     <div id="planCard-free" class="border-2 border-gray-200 rounded-xl p-4">
-      <div class="flex items-center justify-between mb-2">
-        <div class="flex items-center gap-2"><span class="text-xl">⚡</span><span class="font-bold text-gray-800">Gratis</span></div>
-        <span class="text-lg font-bold text-gray-600">$0 <span class="text-xs font-normal">/ mes</span></span>
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2"><span class="text-xl">⚡</span><span class="font-bold text-gray-800 text-base">Gratis</span></div>
+        <span class="text-lg font-bold text-gray-600">$0 <span class="text-xs font-normal text-gray-400">/ mes</span></span>
       </div>
-      <ul class="text-xs text-gray-600 space-y-1">
-        <li>✅ 5 análisis de foto por día</li>
-        <li>✅ Análisis de cuadrantes satelital ilimitado</li>
-        <li>✅ Chat con el agrónomo IA</li>
-        <li>✅ Clima y mercado</li>
-        <li>❌ Sin historial en la nube</li>
-        <li>❌ Sin alertas automáticas</li>
-      </ul>
+      <div class="space-y-2 text-xs text-gray-700">
+        <div class="font-semibold text-gray-500 uppercase tracking-wide text-xs">📷 Análisis con IA</div>
+        <div class="pl-2 space-y-0.5">
+          <div>✅ 5 fotos de pasturas/hacienda por día</div>
+          <div>✅ Identificación de malezas (foto)</div>
+          <div>✅ Estimación de peso de ganado (foto)</div>
+        </div>
+        <div class="font-semibold text-gray-500 uppercase tracking-wide text-xs pt-1">🛰️ Satelital</div>
+        <div class="pl-2 space-y-0.5">
+          <div>✅ Análisis NDVI por cuadrantes ilimitado</div>
+          <div>✅ Imágenes MODIS, Sentinel-2 y Aqua</div>
+          <div>✅ Detección automática de imagen más reciente</div>
+        </div>
+        <div class="font-semibold text-gray-500 uppercase tracking-wide text-xs pt-1">💬 Herramientas</div>
+        <div class="pl-2 space-y-0.5">
+          <div>✅ Chat con agrónomo IA (historial local)</div>
+          <div>✅ Clima 7 días + indicadores agronómicos</div>
+          <div>✅ Precios de mercado (CBOT + Uruguay)</div>
+          <div>✅ Mis Campos + Registros ganaderos</div>
+          <div>❌ Alertas automáticas</div>
+          <div>❌ Historial en la nube (entre dispositivos)</div>
+        </div>
+      </div>
       <div id="planCurrentFree" class="hidden mt-3 text-center text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg py-1.5 font-medium">✅ Tu plan actual</div>
     </div>
+
     <!-- Plan Pro -->
     <div class="border-2 border-emerald-400 rounded-xl p-4 relative">
       <div class="absolute -top-2.5 right-4 bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">RECOMENDADO</div>
-      <div class="flex items-center justify-between mb-2">
-        <div class="flex items-center gap-2"><span class="text-xl">🚀</span><span class="font-bold text-gray-800">Pro</span></div>
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2"><span class="text-xl">🚀</span><span class="font-bold text-gray-800 text-base">Pro</span></div>
         <div class="text-right">
-          <div class="text-lg font-bold text-emerald-700">$6 USD <span class="text-xs font-normal">/ mes</span></div>
+          <div class="text-lg font-bold text-emerald-700">$6 USD <span class="text-xs font-normal text-gray-400">/ mes</span></div>
           <div class="text-xs text-yellow-600 font-semibold">🎁 15 días gratis</div>
         </div>
       </div>
-      <ul class="text-xs text-gray-600 space-y-1">
-        <li>✅ <b>Análisis de foto ilimitados</b></li>
-        <li>✅ Análisis satelital ilimitado</li>
-        <li>✅ Historial completo en la nube</li>
-        <li>✅ Alertas proactivas automáticas</li>
-        <li>✅ Exportar a PDF y CSV</li>
-        <li>✅ Soporte prioritario</li>
-      </ul>
+      <div class="space-y-2 text-xs text-gray-700">
+        <div class="font-semibold text-gray-500 uppercase tracking-wide text-xs">📷 Análisis con IA</div>
+        <div class="pl-2 space-y-0.5">
+          <div>✅ <b>Fotos ilimitadas</b> (pasturas, hacienda, malezas)</div>
+          <div>✅ Comparación antes/después de pasturas</div>
+          <div>✅ Análisis de suelo con datos SoilGrids + IA</div>
+        </div>
+        <div class="font-semibold text-gray-500 uppercase tracking-wide text-xs pt-1">🛰️ Satelital</div>
+        <div class="pl-2 space-y-0.5">
+          <div>✅ Todo lo del plan Gratis</div>
+          <div>✅ Historial de imágenes satelitales por campo</div>
+        </div>
+        <div class="font-semibold text-gray-500 uppercase tracking-wide text-xs pt-1">💬 Herramientas</div>
+        <div class="pl-2 space-y-0.5">
+          <div>✅ <b>Alertas agronómicas automáticas</b> (plagas, clima, fechas)</div>
+          <div>✅ Historial de chats sincronizado en la nube</div>
+          <div>✅ Exportar registros a CSV y PDF</div>
+          <div>✅ Análisis de mercado personalizado por cultivo</div>
+          <div>✅ Soporte prioritario por email</div>
+        </div>
+      </div>
       <div id="planCurrentPro" class="hidden mt-3 text-center text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg py-1.5 font-medium">✅ Tu plan actual</div>
       <button id="btnContratarPro" onclick="contactarPlan('Pro')" class="hidden mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-lg text-sm transition">🎁 Probar Pro gratis 15 días</button>
     </div>
+
     <!-- Plan Familia -->
     <div class="border-2 border-blue-300 rounded-xl p-4">
-      <div class="flex items-center justify-between mb-2">
-        <div class="flex items-center gap-2"><span class="text-xl">👨‍👩‍👧</span><span class="font-bold text-gray-800">Familia / Establecimiento</span></div>
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2"><span class="text-xl">👨‍👩‍👧</span><span class="font-bold text-gray-800 text-base">Familia / Establecimiento</span></div>
         <div class="text-right">
-          <div class="text-lg font-bold text-blue-700">$15 USD <span class="text-xs font-normal">/ mes</span></div>
+          <div class="text-lg font-bold text-blue-700">$15 USD <span class="text-xs font-normal text-gray-400">/ mes</span></div>
           <div class="text-xs text-yellow-600 font-semibold">🎁 15 días gratis</div>
         </div>
       </div>
-      <ul class="text-xs text-gray-600 space-y-1">
-        <li>✅ <b>Todo lo de Pro</b></li>
-        <li>✅ <b>Hasta 5 usuarios</b></li>
-        <li>✅ Gestión compartida del establecimiento</li>
-        <li>✅ Dashboard multi-campo</li>
-        <li>✅ Reportes mensuales automáticos</li>
-      </ul>
+      <div class="space-y-2 text-xs text-gray-700">
+        <div class="font-semibold text-gray-500 uppercase tracking-wide text-xs">👥 Usuarios</div>
+        <div class="pl-2 space-y-0.5">
+          <div>✅ <b>Hasta 5 usuarios</b> en el mismo establecimiento</div>
+          <div>✅ Cada peón/encargado puede cargar desde su cel</div>
+          <div>✅ El dueño ve todo desde la web</div>
+        </div>
+        <div class="font-semibold text-gray-500 uppercase tracking-wide text-xs pt-1">📊 Gestión</div>
+        <div class="pl-2 space-y-0.5">
+          <div>✅ <b>Todo lo del plan Pro</b></div>
+          <div>✅ Dashboard multi-campo compartido</div>
+          <div>✅ Registro de labores, suplementación y movimientos</div>
+          <div>✅ Gestión de insumos (stock en tiempo real)</div>
+          <div>✅ Informe semanal automático con NDVI + actividades</div>
+        </div>
+        <div class="font-semibold text-gray-500 uppercase tracking-wide text-xs pt-1">💰 Económico</div>
+        <div class="pl-2 space-y-0.5">
+          <div>✅ Costos e ingresos por potrero/lote/campaña</div>
+          <div>✅ Reportes mensuales en PDF con croquis satelital</div>
+        </div>
+      </div>
       <div id="planCurrentFamilia" class="hidden mt-3 text-center text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg py-1.5 font-medium">✅ Tu plan actual</div>
       <button id="btnContratarFamilia" onclick="contactarPlan('Familia')" class="hidden mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg text-sm transition">🎁 Probar Familia gratis 15 días</button>
     </div>
+
   </div>
   <div class="px-5 pb-5 text-center text-xs text-gray-400">¿Preguntas? Escribinos a <a href="mailto:hola@agrovision.uy" class="text-emerald-600 underline">hola@agrovision.uy</a></div>
 </div>
@@ -417,8 +463,16 @@ body *{visibility:hidden}
 </section>
 
 <section id="panel-chat" class="hidden">
-<h2 class="text-lg font-semibold text-gray-800 mb-1">💬 Consulta al agrónomo IA</h2>
-<p class="text-sm text-gray-600 mb-3">Hacé tu consulta sobre potreros, pasturas, hacienda, cultivos, suelos o cualquier tema del campo. El agrónomo IA habla en uruguayo.</p>
+<div class="flex items-center justify-between mb-3">
+  <div>
+    <h2 class="text-lg font-semibold text-gray-800">💬 Agrónomo IA</h2>
+    <p class="text-xs text-gray-500">Consultá sobre pasturas, hacienda, cultivos, suelos o cualquier tema del campo</p>
+  </div>
+  <button onclick="newChat()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1">✏️ Nuevo chat</button>
+</div>
+<!-- Historial de chats guardados -->
+<div id="chatSessions" class="mb-3 flex gap-2 overflow-x-auto pb-1" style="scrollbar-width:thin"></div>
+<!-- Chat activo -->
 <div id="chatBox" class="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-3 overflow-y-auto space-y-3" style="min-height:220px;max-height:420px">
 <div class="flex gap-2 items-start">
 <div class="text-2xl leading-none mt-1">🌱</div>
@@ -710,7 +764,7 @@ function safeToken(){
 }
 function authHeader(){return{'content-type':'application/json','Authorization':'Bearer '+safeToken()};}
 
-function switchTab(n){['foto','sat','chat','weed','cow','market','campos','registros','clima'].forEach(t=>{document.getElementById('panel-'+t).classList.add('hidden');const b=document.getElementById('tab-'+t);b.classList.remove('tab-active');b.classList.add('tab-inactive')});document.getElementById('panel-'+n).classList.remove('hidden');const a=document.getElementById('tab-'+n);a.classList.remove('tab-inactive');a.classList.add('tab-active');if(n==='sat'){if(!window.mapInited)initMap();else setTimeout(()=>{if(map){map.invalidateSize();}},100);}if(n==='foto')loadWeather();if(n==='market'&&!window.marketLoaded)loadMarket();if(n==='campos')renderFields();if(n==='registros')renderLivestock();if(n==='clima'&&!window.climaLoaded)loadClima();}
+function switchTab(n){['foto','sat','chat','weed','cow','market','campos','registros','clima'].forEach(t=>{document.getElementById('panel-'+t).classList.add('hidden');const b=document.getElementById('tab-'+t);b.classList.remove('tab-active');b.classList.add('tab-inactive')});document.getElementById('panel-'+n).classList.remove('hidden');const a=document.getElementById('tab-'+n);a.classList.remove('tab-inactive');a.classList.add('tab-active');if(n==='sat'){if(!window.mapInited)initMap();else setTimeout(()=>{if(map){map.invalidateSize();}},100);}if(n==='foto')loadWeather();if(n==='market'&&!window.marketLoaded)loadMarket();if(n==='campos')renderFields();if(n==='registros')renderLivestock();if(n==='clima'&&!window.climaLoaded)loadClima();if(n==='chat'&&!window.chatInited){window.chatInited=true;initChat();}}
 
 const drop=document.getElementById('dropZone'),fileInput=document.getElementById('fileInput'),previewBox=document.getElementById('previewBox'),btnAnalyze=document.getElementById('btnAnalyze');
 const drop2=document.getElementById('dropZone2'),fileInput2=document.getElementById('fileInput2');
@@ -1893,7 +1947,98 @@ renderSavedPotreros();
 }
 
 // ============ CHAT IA AGRÓNOMO ============
-const chatHistory=[];
+const CHAT_STORAGE_KEY='agroChatSessions';
+let chatHistory=[];
+let activeChatId=null;
+
+function getChatSessions(){
+  try{return JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY)||'[]')}catch{return[]}
+}
+function saveChatSessions(sessions){
+  localStorage.setItem(CHAT_STORAGE_KEY,JSON.stringify(sessions));
+}
+function genChatId(){return 'chat_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)}
+
+function initChat(){
+  let sessions=getChatSessions();
+  if(!sessions.length){
+    const id=genChatId();
+    sessions=[{id,title:'Nueva consulta',created:Date.now(),messages:[]}];
+    saveChatSessions(sessions);
+  }
+  loadChatSession(sessions[0].id);
+  renderChatSessionsList();
+}
+
+function renderChatSessionsList(){
+  const container=document.getElementById('chatSessions');
+  if(!container)return;
+  const sessions=getChatSessions();
+  if(!sessions.length){container.innerHTML='';return}
+  container.innerHTML=sessions.map(s=>{
+    const isActive=s.id===activeChatId;
+    const fecha=new Date(s.created).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit'});
+    return`<button onclick="loadChatSession('${s.id}')" class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition ${isActive?'bg-emerald-600 text-white border-emerald-600 font-semibold':'bg-white text-gray-700 border-gray-300 hover:border-emerald-400'}">
+<span>💬</span><span class="max-w-28 truncate">${escapeHtml(s.title)}</span><span class="opacity-60 text-xs">${fecha}</span>
+${sessions.length>1&&!isActive?`<button onclick="event.stopPropagation();deleteChatSession('${s.id}')" class="ml-1 text-gray-400 hover:text-red-500 leading-none" title="Eliminar">×</button>`:''}
+</button>`;
+  }).join('');
+}
+
+function loadChatSession(id){
+  const sessions=getChatSessions();
+  const s=sessions.find(x=>x.id===id);
+  if(!s)return;
+  activeChatId=id;
+  chatHistory=s.messages.slice();
+  const box=document.getElementById('chatBox');
+  if(!box)return;
+  // Render mensajes guardados
+  const WELCOME=`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-800" style="max-width:85%">¡Buenas! Soy tu agrónomo IA especializado en el campo uruguayo. Consultame lo que quieras: pasturas, hacienda, fertilizantes, sanidad, suelos, clima... ¿En qué te puedo dar una mano?</div></div>`;
+  if(!s.messages.length){box.innerHTML=WELCOME;renderChatSessionsList();return}
+  box.innerHTML=s.messages.map(m=>{
+    if(m.role==='user')return`<div class="flex gap-2 justify-end items-start"><div class="bg-blue-600 text-white rounded-xl px-3 py-2 text-sm" style="max-width:85%">${escapeHtml(m.content)}</div><div class="text-xl leading-none mt-1">👤</div></div>`;
+    return`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-800 whitespace-pre-wrap" style="max-width:85%">${escapeHtml(m.content)}</div></div>`;
+  }).join('');
+  box.scrollTop=box.scrollHeight;
+  renderChatSessionsList();
+}
+
+function newChat(){
+  const sessions=getChatSessions();
+  const id=genChatId();
+  sessions.unshift({id,title:'Nueva consulta',created:Date.now(),messages:[]});
+  // Limitar a 20 chats guardados
+  if(sessions.length>20)sessions.splice(20);
+  saveChatSessions(sessions);
+  loadChatSession(id);
+}
+
+function deleteChatSession(id){
+  let sessions=getChatSessions().filter(s=>s.id!==id);
+  if(!sessions.length){const nid=genChatId();sessions=[{id:nid,title:'Nueva consulta',created:Date.now(),messages:[]}]}
+  saveChatSessions(sessions);
+  if(activeChatId===id)loadChatSession(sessions[0].id);
+  else renderChatSessionsList();
+}
+
+function updateActiveChatTitle(msg){
+  const sessions=getChatSessions();
+  const idx=sessions.findIndex(s=>s.id===activeChatId);
+  if(idx<0)return;
+  if(sessions[idx].title==='Nueva consulta'){
+    sessions[idx].title=msg.length>32?msg.slice(0,32)+'…':msg;
+    saveChatSessions(sessions);
+  }
+}
+
+function saveMessageToSession(role,content){
+  const sessions=getChatSessions();
+  const idx=sessions.findIndex(s=>s.id===activeChatId);
+  if(idx<0)return;
+  sessions[idx].messages.push({role,content});
+  saveChatSessions(sessions);
+}
 
 async function sendChat(){
 const inp=document.getElementById('chatInput');
@@ -1901,20 +2046,25 @@ const msg=inp.value.trim();
 if(!msg)return;
 const box=document.getElementById('chatBox');
 inp.value='';
+if(!activeChatId)initChat();
+updateActiveChatTitle(msg);
 box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 justify-end items-start"><div class="bg-blue-600 text-white rounded-xl px-3 py-2 text-sm" style="max-width:85%">${escapeHtml(msg)}</div><div class="text-xl leading-none mt-1">👤</div></div>`);
 box.scrollTop=box.scrollHeight;
 const loadId='cl-'+Date.now();
 box.insertAdjacentHTML('beforeend',`<div id="${loadId}" class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-500 pulse-dot">Pensando...</div></div>`);
 box.scrollTop=box.scrollHeight;
 chatHistory.push({role:'user',content:msg});
+saveMessageToSession('user',msg);
 try{
 const res=await fetch('/api/chat',{method:'POST',headers:authHeader(),body:jbody({messages:chatHistory})});
 document.getElementById(loadId)?.remove();
 if(!res.ok){const errHtml=await backendErrorHtml(res);box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div style="max-width:85%">${errHtml}</div></div>`);box.scrollTop=box.scrollHeight;return;}
 const{text}=await res.json();
 chatHistory.push({role:'assistant',content:text});
+saveMessageToSession('assistant',text);
 box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm text-gray-800 whitespace-pre-wrap" style="max-width:85%">${escapeHtml(text)}</div></div>`);
 box.scrollTop=box.scrollHeight;
+renderChatSessionsList();
 }catch(e){
 document.getElementById(loadId)?.remove();
 box.insertAdjacentHTML('beforeend',`<div class="flex gap-2 items-start"><div class="text-2xl leading-none mt-1">🌱</div><div class="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-700" style="max-width:85%">❌ ${escapeHtml(e.message)}</div></div>`);
