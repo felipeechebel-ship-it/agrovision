@@ -118,6 +118,9 @@ body *{visibility:hidden}
 <button id="tab-chat" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('chat')">💬 Consulta IA</button>
 <button id="tab-weed" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('weed')">🌿 Malezas</button>
 <button id="tab-cow" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('cow')">🐄 Ganado</button>
+<button id="tab-market" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('market')">💰 Mercado</button>
+<button id="tab-campos" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('campos')">🗺️ Mis Campos</button>
+<button id="tab-registros" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('registros')">📋 Registros</button>
 </div>
 
 <main class="glass rounded-b-2xl p-4 md:p-6 shadow-2xl">
@@ -425,6 +428,115 @@ body *{visibility:hidden}
 </div>
 </section>
 
+<!-- ─── PANEL MERCADO ──────────────────────────────────────────────────────── -->
+<section id="panel-market" class="hidden">
+<h2 class="text-lg font-semibold text-gray-800 mb-1">💰 Precios de mercado</h2>
+<p class="text-sm text-gray-500 mb-4">Commodities CBOT en tiempo real. Referencia internacional — para precios locales consultá tu acopiador o OPYPA.</p>
+
+<div class="flex flex-wrap gap-2 mb-4">
+  <button onclick="loadMarket()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium">🔄 Actualizar precios</button>
+  <select id="marketCrop" class="border border-gray-300 rounded-lg p-2 text-sm">
+    <option value="ganadería y agricultura mixta">Mixto (ganadería + agricultura)</option>
+    <option value="ganadería">Ganadería</option>
+    <option value="soja">Soja</option>
+    <option value="maíz">Maíz</option>
+    <option value="trigo">Trigo</option>
+  </select>
+  <button onclick="marketAnalysis()" id="btnMarketAI" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium">🤖 Analizar con IA</button>
+</div>
+
+<div id="marketCards" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+  <div class="col-span-2 md:col-span-4 text-center text-gray-400 py-8 text-sm">Cargando precios...</div>
+</div>
+<div id="marketUpdated" class="text-xs text-gray-400 mb-4"></div>
+<div id="marketAIResult" class="hidden bg-purple-50 border border-purple-200 rounded-xl p-4 text-sm text-gray-800 whitespace-pre-wrap leading-relaxed"></div>
+</section>
+
+<!-- ─── PANEL MIS CAMPOS ───────────────────────────────────────────────────── -->
+<section id="panel-campos" class="hidden">
+<h2 class="text-lg font-semibold text-gray-800 mb-1">🗺️ Mis Campos</h2>
+<p class="text-sm text-gray-500 mb-4">Guardá tus potreros y obtené análisis de suelo y alertas proactivas para cada uno.</p>
+
+<div class="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+  <h3 class="font-medium text-gray-700 mb-3 text-sm">➕ Agregar campo</h3>
+  <div class="grid md:grid-cols-2 gap-3">
+    <div><label class="text-xs text-gray-500 mb-1 block">Nombre del campo</label>
+    <input id="fieldName" type="text" placeholder="Ej: Potrero Norte" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+    <div><label class="text-xs text-gray-500 mb-1 block">Cultivo / Uso</label>
+    <select id="fieldCrop" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+      <option value="pastura">Pastura / Campo natural</option>
+      <option value="soja">Soja</option><option value="maiz">Maíz</option>
+      <option value="trigo">Trigo</option><option value="arroz">Arroz</option>
+      <option value="alfalfa">Alfalfa</option><option value="mixto">Mixto</option>
+    </select></div>
+    <div><label class="text-xs text-gray-500 mb-1 block">Superficie (hectáreas)</label>
+    <input id="fieldArea" type="number" placeholder="Ej: 50" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+    <div><label class="text-xs text-gray-500 mb-1 block">Ubicación GPS</label>
+    <div class="flex gap-2">
+      <input id="fieldLat" type="number" step="any" placeholder="Latitud" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+      <input id="fieldLon" type="number" step="any" placeholder="Longitud" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+      <button onclick="getFieldGPS()" class="bg-blue-500 hover:bg-blue-600 text-white px-3 rounded-lg text-xs shrink-0">📍</button>
+    </div></div>
+  </div>
+  <div class="mt-3"><label class="text-xs text-gray-500 mb-1 block">Notas</label>
+  <input id="fieldNotes" type="text" placeholder="Observaciones del campo..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+  <button onclick="addField()" class="mt-3 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium">💾 Guardar campo</button>
+</div>
+
+<div id="fieldsList" class="space-y-3"></div>
+<div id="soilResult" class="mt-4 hidden bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-gray-800"></div>
+</section>
+
+<!-- ─── PANEL REGISTROS ───────────────────────────────────────────────────── -->
+<section id="panel-registros" class="hidden">
+<h2 class="text-lg font-semibold text-gray-800 mb-1">📋 Registros y Alertas</h2>
+
+<div class="flex gap-2 mb-4 border-b border-gray-200 pb-2">
+  <button id="regTabGan" onclick="switchRegTab('gan')" class="text-sm px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium">🐄 Ganadería</button>
+  <button id="regTabAlerts" onclick="switchRegTab('alerts')" class="text-sm px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700">🔔 Alertas</button>
+</div>
+
+<div id="regPanelGan">
+  <div class="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+    <h3 class="font-medium text-gray-700 mb-3 text-sm">➕ Registrar evento</h3>
+    <div class="grid md:grid-cols-2 gap-3">
+      <div><label class="text-xs text-gray-500 mb-1 block">Lote</label>
+      <input id="lvLote" type="text" placeholder="Ej: Lote 1, Vacas de cría" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+      <div><label class="text-xs text-gray-500 mb-1 block">Tipo de evento</label>
+      <select id="lvTipo" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+        <option value="vacuna">💉 Vacuna</option>
+        <option value="tratamiento">💊 Tratamiento</option>
+        <option value="pesaje">⚖️ Pesaje</option>
+        <option value="rotacion">🔄 Rotación de potrero</option>
+        <option value="entore">🐂 Entore</option>
+        <option value="destete">🍼 Destete</option>
+        <option value="otro">📝 Otro</option>
+      </select></div>
+      <div><label class="text-xs text-gray-500 mb-1 block">Descripción</label>
+      <input id="lvDesc" type="text" placeholder="Ej: Clostridiosis, Brucelosis..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+      <div><label class="text-xs text-gray-500 mb-1 block">Cantidad de animales</label>
+      <input id="lvCantidad" type="number" placeholder="Ej: 80" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+      <div><label class="text-xs text-gray-500 mb-1 block">Fecha del evento</label>
+      <input id="lvFecha" type="date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+      <div><label class="text-xs text-gray-500 mb-1 block">Próxima fecha (recordatorio)</label>
+      <input id="lvProxima" type="date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+    </div>
+    <button onclick="addLivestock()" class="mt-3 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium">💾 Guardar registro</button>
+  </div>
+  <div id="livestockList" class="space-y-2"></div>
+</div>
+
+<div id="regPanelAlerts" class="hidden">
+  <div class="flex flex-wrap gap-2 mb-4">
+    <button onclick="runAlertScan()" id="btnAlertScan" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium">🔍 Escanear mis campos</button>
+    <span class="text-xs text-gray-500 self-center">Analiza tus campos y registros y genera alertas proactivas</span>
+  </div>
+  <div id="alertsList" class="space-y-3">
+    <p class="text-sm text-gray-500 text-center py-6">Apretá "Escanear mis campos" para ver las alertas.</p>
+  </div>
+</div>
+</section>
+
 </main>
 <footer class="text-emerald-100 text-xs text-center mt-6 opacity-80">AgroVisión · NDVI: NASA GIBS · No reemplaza la visita de un agrónomo a campo<br><span class="opacity-60">Powered by Vortex</span></footer>
 </div>
@@ -440,7 +552,7 @@ function safeToken(){
 }
 function authHeader(){return{'content-type':'application/json','Authorization':'Bearer '+safeToken()};}
 
-function switchTab(n){['foto','sat','chat','weed','cow'].forEach(t=>{document.getElementById('panel-'+t).classList.add('hidden');const b=document.getElementById('tab-'+t);b.classList.remove('tab-active');b.classList.add('tab-inactive')});document.getElementById('panel-'+n).classList.remove('hidden');const a=document.getElementById('tab-'+n);a.classList.remove('tab-inactive');a.classList.add('tab-active');if(n==='sat'){if(!window.mapInited)initMap();else setTimeout(()=>{if(map){map.invalidateSize();}},100);}if(n==='foto')loadWeather();}
+function switchTab(n){['foto','sat','chat','weed','cow','market','campos','registros'].forEach(t=>{document.getElementById('panel-'+t).classList.add('hidden');const b=document.getElementById('tab-'+t);b.classList.remove('tab-active');b.classList.add('tab-inactive')});document.getElementById('panel-'+n).classList.remove('hidden');const a=document.getElementById('tab-'+n);a.classList.remove('tab-inactive');a.classList.add('tab-active');if(n==='sat'){if(!window.mapInited)initMap();else setTimeout(()=>{if(map){map.invalidateSize();}},100);}if(n==='foto')loadWeather();if(n==='market'&&!window.marketLoaded)loadMarket();if(n==='campos')renderFields();if(n==='registros')renderLivestock();}
 
 const drop=document.getElementById('dropZone'),fileInput=document.getElementById('fileInput'),previewBox=document.getElementById('previewBox'),btnAnalyze=document.getElementById('btnAnalyze');
 const drop2=document.getElementById('dropZone2'),fileInput2=document.getElementById('fileInput2');
@@ -1606,6 +1718,7 @@ async function doLogin(){
     localStorage.setItem('agroUser',JSON.stringify(d.user));
     updateUserUI(d.user);
     closeAuthModal();
+    syncUserDataFromServer();
   }catch(e){errEl.textContent='Error de red. Intentá de nuevo.';errEl.classList.remove('hidden')}
 }
 
@@ -1647,6 +1760,288 @@ function updateUserUI(user){
     guest.classList.remove('hidden');
     userArea.classList.add('hidden');
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// MERCADO
+// ═══════════════════════════════════════════════════════════
+let marketPrices = [];
+
+async function loadMarket(){
+  document.getElementById('marketCards').innerHTML='<div class="col-span-2 md:col-span-4 text-center text-gray-400 py-8 text-sm">⏳ Cargando precios...</div>';
+  try{
+    const r=await fetch('/api/market');
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'Error');
+    marketPrices=d.prices||[];
+    window.marketLoaded=true;
+    document.getElementById('marketCards').innerHTML=marketPrices.map(p=>`
+      <div class="bg-white border ${p.price?'border-gray-200':'border-gray-100 opacity-60'} rounded-xl p-4 text-center shadow-sm">
+        <div class="text-3xl mb-1">${p.icon}</div>
+        <div class="font-bold text-gray-800 text-sm">${p.name}</div>
+        <div class="text-xl font-bold text-emerald-700 mt-1">${p.price?'$'+p.price:'N/D'}</div>
+        <div class="text-xs text-gray-500">${p.unit}</div>
+        ${p.price?`<div class="mt-1 text-xs font-medium ${parseFloat(p.change)>=0?'text-green-600':'text-red-500'}">${parseFloat(p.change)>=0?'▲':'▼'} ${Math.abs(p.change)}%</div>`:''}
+      </div>`).join('');
+    const upd=new Date(d.updated);
+    document.getElementById('marketUpdated').textContent='Actualizado: '+upd.toLocaleString('es-UY');
+  }catch(e){
+    document.getElementById('marketCards').innerHTML=`<div class="col-span-2 md:col-span-4 text-center text-red-400 py-6 text-sm">Error cargando precios: ${e.message}</div>`;
+  }
+}
+
+async function marketAnalysis(){
+  const btn=document.getElementById('btnMarketAI');
+  const out=document.getElementById('marketAIResult');
+  btn.disabled=true;btn.textContent='⏳ Analizando...';
+  out.classList.add('hidden');
+  try{
+    const crop=document.getElementById('marketCrop').value;
+    const r=await fetch('/api/market/analysis',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({prices:marketPrices,crop})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error);
+    out.textContent=d.text;
+    out.classList.remove('hidden');
+  }catch(e){out.textContent='Error: '+e.message;out.classList.remove('hidden')}
+  btn.disabled=false;btn.textContent='🤖 Analizar con IA';
+}
+
+// ═══════════════════════════════════════════════════════════
+// MIS CAMPOS
+// ═══════════════════════════════════════════════════════════
+function getUserData(){
+  try{return JSON.parse(localStorage.getItem('agroUserData')||'{}')}catch{return{}}
+}
+function saveUserData(data){
+  localStorage.setItem('agroUserData',JSON.stringify(data));
+  // Intentar sync al servidor si hay token
+  const tok=localStorage.getItem('agroToken');
+  if(tok){
+    fetch('/api/userdata',{method:'PUT',headers:{'content-type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify({data})}).catch(()=>{});
+  }
+}
+
+function getFieldGPS(){
+  if(!navigator.geolocation)return alert('GPS no disponible');
+  navigator.geolocation.getCurrentPosition(p=>{
+    document.getElementById('fieldLat').value=p.coords.latitude.toFixed(6);
+    document.getElementById('fieldLon').value=p.coords.longitude.toFixed(6);
+  },()=>alert('No se pudo obtener ubicación'));
+}
+
+function addField(){
+  const name=document.getElementById('fieldName').value.trim();
+  const crop=document.getElementById('fieldCrop').value;
+  const area=document.getElementById('fieldArea').value;
+  const lat=parseFloat(document.getElementById('fieldLat').value);
+  const lon=parseFloat(document.getElementById('fieldLon').value);
+  const notes=document.getElementById('fieldNotes').value.trim();
+  if(!name)return alert('Ingresá el nombre del campo');
+  const data=getUserData();
+  if(!data.fields)data.fields=[];
+  data.fields.push({id:Date.now().toString(),name,crop,area:area||'',lat:isNaN(lat)?null:lat,lon:isNaN(lon)?null:lon,notes,created:new Date().toISOString()});
+  saveUserData(data);
+  document.getElementById('fieldName').value='';
+  document.getElementById('fieldArea').value='';
+  document.getElementById('fieldLat').value='';
+  document.getElementById('fieldLon').value='';
+  document.getElementById('fieldNotes').value='';
+  renderFields();
+}
+
+function deleteField(id){
+  if(!confirm('¿Borrar este campo?'))return;
+  const data=getUserData();
+  data.fields=(data.fields||[]).filter(f=>f.id!==id);
+  saveUserData(data);
+  renderFields();
+}
+
+const cropEmoji={pastura:'🌿',soja:'🌱',maiz:'🌽',trigo:'🌾',arroz:'🌾',alfalfa:'🍀',mixto:'🏡'};
+
+function renderFields(){
+  const data=getUserData();
+  const fields=data.fields||[];
+  const el=document.getElementById('fieldsList');
+  if(!fields.length){
+    el.innerHTML='<p class="text-sm text-gray-400 text-center py-8">Aún no tenés campos guardados. Agregá tu primer potrero arriba.</p>';
+    return;
+  }
+  el.innerHTML=fields.map(f=>`
+    <div class="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap items-start gap-3">
+      <div class="text-3xl">${cropEmoji[f.crop]||'🌾'}</div>
+      <div class="flex-1 min-w-0">
+        <div class="font-semibold text-gray-800">${f.name}</div>
+        <div class="text-sm text-gray-600">${f.crop}${f.area?' · '+f.area+' ha':''}</div>
+        ${f.lat?`<div class="text-xs text-gray-400 mt-1">📍 ${f.lat.toFixed(4)}, ${f.lon.toFixed(4)}</div>`:''}
+        ${f.notes?`<div class="text-xs text-gray-500 mt-1">${f.notes}</div>`:''}
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        ${f.lat?`<button onclick="analyzeSoil('${f.id}')" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg font-medium">🔬 Suelo</button>`:''}
+        <button onclick="deleteField('${f.id}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded-lg">🗑️</button>
+      </div>
+    </div>`).join('');
+}
+
+async function analyzeSoil(fieldId){
+  const data=getUserData();
+  const field=(data.fields||[]).find(f=>f.id===fieldId);
+  if(!field||!field.lat)return;
+  const out=document.getElementById('soilResult');
+  out.innerHTML='⏳ Consultando datos de suelo (SoilGrids)...';
+  out.classList.remove('hidden');
+  try{
+    const r=await fetch(`/api/soil?lat=${field.lat}&lon=${field.lon}`);
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error);
+    out.innerHTML=`<h4 class="font-semibold text-amber-900 mb-2">🔬 Análisis de suelo — ${field.name}</h4><div class="whitespace-pre-wrap text-sm">${d.analysis}</div>`;
+  }catch(e){
+    out.innerHTML=`<span class="text-red-600">Error: ${e.message}</span>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// REGISTROS DE GANADERÍA
+// ═══════════════════════════════════════════════════════════
+const tipoEmoji={vacuna:'💉',tratamiento:'💊',pesaje:'⚖️',rotacion:'🔄',entore:'🐂',destete:'🍼',otro:'📝'};
+
+function addLivestock(){
+  const lote=document.getElementById('lvLote').value.trim();
+  const tipo=document.getElementById('lvTipo').value;
+  const desc=document.getElementById('lvDesc').value.trim();
+  const cantidad=document.getElementById('lvCantidad').value;
+  const fecha=document.getElementById('lvFecha').value;
+  const proxima=document.getElementById('lvProxima').value;
+  if(!lote||!desc||!fecha)return alert('Completá Lote, Descripción y Fecha');
+  const data=getUserData();
+  if(!data.livestock)data.livestock=[];
+  data.livestock.unshift({id:Date.now().toString(),lote,tipo,descripcion:desc,cantidad:cantidad||'',fecha,proxima,completado:false,created:new Date().toISOString()});
+  saveUserData(data);
+  document.getElementById('lvLote').value='';
+  document.getElementById('lvDesc').value='';
+  document.getElementById('lvCantidad').value='';
+  document.getElementById('lvFecha').value='';
+  document.getElementById('lvProxima').value='';
+  renderLivestock();
+}
+
+function toggleLivestockDone(id){
+  const data=getUserData();
+  const rec=(data.livestock||[]).find(r=>r.id===id);
+  if(rec)rec.completado=!rec.completado;
+  saveUserData(data);
+  renderLivestock();
+}
+
+function deleteLivestock(id){
+  if(!confirm('¿Borrar este registro?'))return;
+  const data=getUserData();
+  data.livestock=(data.livestock||[]).filter(r=>r.id!==id);
+  saveUserData(data);
+  renderLivestock();
+}
+
+function daysUntil(dateStr){
+  if(!dateStr)return null;
+  return Math.round((new Date(dateStr)-new Date())/86400000);
+}
+
+function renderLivestock(){
+  const data=getUserData();
+  const recs=data.livestock||[];
+  const el=document.getElementById('livestockList');
+  if(!recs.length){
+    el.innerHTML='<p class="text-sm text-gray-400 text-center py-8">Aún no tenés registros. Agregá el primero arriba.</p>';
+    return;
+  }
+  el.innerHTML=recs.map(r=>{
+    const dias=daysUntil(r.proxima);
+    let badge='';
+    if(r.proxima&&!r.completado){
+      if(dias<0)badge=`<span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">⚠️ Vencido hace ${Math.abs(dias)}d</span>`;
+      else if(dias<=7)badge=`<span class="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">🔔 En ${dias}d</span>`;
+      else if(dias<=30)badge=`<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">📅 En ${dias}d</span>`;
+    }
+    return `<div class="bg-white border ${r.completado?'border-gray-100 opacity-60':'border-gray-200'} rounded-xl p-3 flex flex-wrap items-start gap-2">
+      <div class="text-2xl">${tipoEmoji[r.tipo]||'📝'}</div>
+      <div class="flex-1 min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="font-semibold text-gray-800 text-sm">${r.lote}</span>
+          <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">${r.tipo}</span>
+          ${badge}
+          ${r.completado?'<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✅ Hecho</span>':''}
+        </div>
+        <div class="text-sm text-gray-700 mt-0.5">${r.descripcion}${r.cantidad?' · '+r.cantidad+' animales':''}</div>
+        <div class="text-xs text-gray-400 mt-0.5">Fecha: ${r.fecha}${r.proxima?' · Próxima: '+r.proxima:''}</div>
+      </div>
+      <div class="flex gap-1">
+        <button onclick="toggleLivestockDone('${r.id}')" class="text-xs bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-2 py-1.5 rounded-lg">${r.completado?'↩️':'✅'}</button>
+        <button onclick="deleteLivestock('${r.id}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1.5 rounded-lg">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// ALERTAS
+// ═══════════════════════════════════════════════════════════
+function switchRegTab(tab){
+  document.getElementById('regPanelGan').classList.toggle('hidden',tab!=='gan');
+  document.getElementById('regPanelAlerts').classList.toggle('hidden',tab!=='alerts');
+  document.getElementById('regTabGan').className=`text-sm px-3 py-1.5 rounded-lg font-medium ${tab==='gan'?'bg-emerald-600 text-white':'bg-gray-100 text-gray-700'}`;
+  document.getElementById('regTabAlerts').className=`text-sm px-3 py-1.5 rounded-lg font-medium ${tab==='alerts'?'bg-emerald-600 text-white':'bg-gray-100 text-gray-700'}`;
+}
+
+const alertColor={alta:'border-red-300 bg-red-50',media:'border-orange-300 bg-orange-50',baja:'border-yellow-200 bg-yellow-50'};
+const alertBadge={alta:'bg-red-100 text-red-700',media:'bg-orange-100 text-orange-700',baja:'bg-yellow-100 text-yellow-700'};
+
+async function runAlertScan(){
+  const btn=document.getElementById('btnAlertScan');
+  const out=document.getElementById('alertsList');
+  btn.disabled=true;btn.textContent='⏳ Escaneando...';
+  out.innerHTML='<p class="text-sm text-gray-500 text-center py-6">Analizando tus campos y registros...</p>';
+  try{
+    const data=getUserData();
+    const r=await fetch('/api/alerts/scan',{method:'POST',headers:{'content-type':'application/json','Authorization':'Bearer '+(localStorage.getItem('agroToken')||'')},body:JSON.stringify({fields:data.fields||[],livestock:data.livestock||[]})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error);
+    const alerts=d.alerts||[];
+    if(!alerts.length){
+      out.innerHTML='<p class="text-sm text-green-700 text-center py-6 bg-green-50 rounded-xl">✅ No se detectaron alertas urgentes. ¡Tu campo está al día!</p>';
+    }else{
+      out.innerHTML=alerts.map(a=>`
+        <div class="border ${alertColor[a.nivel]||'border-gray-200 bg-gray-50'} rounded-xl p-3">
+          <div class="flex flex-wrap items-center gap-2 mb-1">
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${alertBadge[a.nivel]||''}">${a.nivel?.toUpperCase()}</span>
+            <span class="text-xs text-gray-500">${a.campo||''}</span>
+            <span class="font-medium text-sm text-gray-800">${a.titulo}</span>
+          </div>
+          <p class="text-sm text-gray-700">${a.detalle}</p>
+          ${a.accion?`<p class="text-xs text-gray-600 mt-1 font-medium">→ ${a.accion}</p>`:''}
+        </div>`).join('');
+    }
+  }catch(e){
+    out.innerHTML=`<p class="text-sm text-red-600 text-center py-4">Error: ${e.message}</p>`;
+  }
+  btn.disabled=false;btn.textContent='🔍 Escanear mis campos';
+}
+
+// Sync datos del servidor al iniciar sesión
+async function syncUserDataFromServer(){
+  const tok=localStorage.getItem('agroToken');
+  if(!tok)return;
+  try{
+    const r=await fetch('/api/userdata',{headers:{'Authorization':'Bearer '+tok}});
+    if(!r.ok)return;
+    const d=await r.json();
+    if(d.data&&(d.data.fields?.length||d.data.livestock?.length)){
+      // Solo sobrescribir si el servidor tiene más datos
+      const local=getUserData();
+      const localTotal=(local.fields?.length||0)+(local.livestock?.length||0);
+      const serverTotal=(d.data.fields?.length||0)+(d.data.livestock?.length||0);
+      if(serverTotal>localTotal)localStorage.setItem('agroUserData',JSON.stringify(d.data));
+    }
+  }catch{}
 }
 
 // Restaurar sesión al cargar

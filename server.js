@@ -399,6 +399,147 @@ app.get('/api/planet/tile/:z/:x/:y', async (req, res) => {
   }
 });
 
+// ─── MERCADO: precios commodity (Yahoo Finance) ───────────────────────────────
+app.get('/api/market', async (req, res) => {
+  try {
+    const commodities = [
+      { sym: 'ZS=F', name: 'Soja',   icon: '🌱', toTon: b => b * 36.744,  unit: 'USD/tn' },
+      { sym: 'ZC=F', name: 'Maíz',   icon: '🌽', toTon: b => b * 39.368,  unit: 'USD/tn' },
+      { sym: 'ZW=F', name: 'Trigo',  icon: '🌾', toTon: b => b * 36.744,  unit: 'USD/tn' },
+      { sym: 'LE=F', name: 'Vacuno', icon: '🐄', toTon: b => b / 2.2046,  unit: 'USD/kg' },
+    ];
+    const prices = await Promise.all(commodities.map(async c => {
+      try {
+        const r = await nodeFetch(
+          `https://query1.finance.yahoo.com/v8/finance/chart/${c.sym}?interval=1d&range=5d`,
+          { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000 }
+        );
+        const d = await r.json();
+        const meta = d.chart?.result?.[0]?.meta || {};
+        const cur  = meta.currency || 'USD';
+        const raw  = meta.regularMarketPrice || 0;
+        const prev = meta.previousClose || raw;
+        const usd  = cur === 'USX' ? raw / 100 : raw;
+        const usdP = cur === 'USX' ? prev / 100 : prev;
+        const converted = c.toTon(usd);
+        const change    = usdP ? ((usd - usdP) / usdP * 100).toFixed(2) : '0.00';
+        return { name: c.name, icon: c.icon, price: converted.toFixed(c.sym==='LE=F'?3:1), unit: c.unit, change, up: parseFloat(change) >= 0 };
+      } catch {
+        return { name: c.name, icon: c.icon, price: null, unit: c.unit, change: '0.00', up: true };
+      }
+    }));
+    res.json({ prices, updated: new Date().toISOString() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── MERCADO: análisis IA ─────────────────────────────────────────────────────
+app.post('/api/market/analysis', async (req, res) => {
+  try {
+    const { prices, crop } = req.body;
+    const priceStr = (prices||[]).map(p => `${p.name}: ${p.price} ${p.unit} (${p.change}%)`).join(', ');
+    const prompt = `Sos un analista de mercados agropecuarios para Uruguay. Precios actuales CBOT: ${priceStr}.
+Para un productor uruguayo de ${crop||'ganadería y agricultura'}, respondé en 3 párrafos cortos:
+1) Situación y tendencia del mercado hoy
+2) ¿Conviene vender ahora o esperar? Sé específico con plazos.
+3) Recomendación concreta para Uruguay (tipo de cambio, costos, mercados destino).
+Sé directo, práctico, en español rioplatense.`;
+    const text = await gemini([{ text: prompt }], 700);
+    res.json({ text });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── SUELO: SoilGrids (ISRIC) + análisis IA ──────────────────────────────────
+app.get('/api/soil', async (req, res) => {
+  try {
+    const { lat, lon } = req.query;
+    if (!lat || !lon) return res.status(400).json({ error: 'lat y lon requeridos' });
+    const r = await nodeFetch(
+      `https://rest.isric.org/soilgrids/v2.0/properties/query?lat=${lat}&lon=${lon}&property=phh2o,soc,nitrogen,clay,sand,silt&depth=0-5cm&value=mean`,
+      { headers: { 'Accept': 'application/json' }, timeout: 15000 }
+    );
+    const d = await r.json();
+    const soil = {};
+    for (const layer of (d.properties?.layers || [])) {
+      const val = layer.depths?.[0]?.values?.mean;
+      if (val != null) soil[layer.name] = { value: val, unit: layer.unit_measure?.mapped_units || '' };
+    }
+    const prompt = `Sos un ingeniero agrónomo especialista en suelos de Uruguay. Datos SoilGrids para ${lat},${lon}:
+pH: ${soil.phh2o?.value ? (soil.phh2o.value/10).toFixed(1) : 'N/D'}
+Carbono orgánico (SOC): ${soil.soc?.value ? (soil.soc.value/10).toFixed(1) : 'N/D'} g/kg
+Nitrógeno total: ${soil.nitrogen?.value ? (soil.nitrogen.value/100).toFixed(2) : 'N/D'} g/kg
+Arcilla: ${soil.clay?.value ? (soil.clay.value/10).toFixed(0) : 'N/D'}%
+Arena: ${soil.sand?.value ? (soil.sand.value/10).toFixed(0) : 'N/D'}%
+Limo: ${soil.silt?.value ? (soil.silt.value/10).toFixed(0) : 'N/D'}%
+Respondé en 4 puntos concisos: 1) Tipo de suelo y calidad 2) Cultivos ideales 3) Fertilizantes recomendados 4) Corrección de pH si hace falta. Lenguaje simple, práctico para el productor uruguayo.`;
+    const analysis = await gemini([{ text: prompt }], 500);
+    res.json({ soil, analysis });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── DATOS DE USUARIO (campos + ganadería en JSON) ────────────────────────────
+app.get('/api/userdata', checkAuth, async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'No autenticado' });
+  const profile = await dbGet('profiles', { id: req.user.id }, 'user_data');
+  res.json({ data: profile?.user_data || { fields: [], livestock: [] } });
+});
+
+app.put('/api/userdata', checkAuth, async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'No autenticado' });
+  const { data } = req.body;
+  const ok = await dbUpdate('profiles', { id: req.user.id }, { user_data: data });
+  res.json({ ok });
+});
+
+// ─── ALERTAS PROACTIVAS ───────────────────────────────────────────────────────
+app.post('/api/alerts/scan', async (req, res) => {
+  try {
+    const { fields, livestock } = req.body;
+    const mes = new Date().toLocaleDateString('es-UY', { month: 'long', year: 'numeric' });
+    const alerts = [];
+
+    // Alertas de campo
+    for (const f of (fields || []).slice(0, 3)) {
+      const prompt = `Sos un sistema de alertas agropecuarias para Uruguay (${mes}). Campo "${f.name}", cultivo: ${f.crop||'sin especificar'}.
+Generá hasta 3 alertas proactivas relevantes para esta época. JSON puro:
+{"alerts":[{"tipo":"plagas|clima|fertilizacion|rotacion|siembra","nivel":"alta|media|baja","titulo":"texto corto","detalle":"1 oración","accion":"qué hacer esta semana"}]}`;
+      const text = await gemini([{ text: prompt }], 400, true);
+      try {
+        const p = JSON.parse(text.replace(/```json\n?|```/g, '').trim());
+        for (const a of (p.alerts||[])) alerts.push({ ...a, campo: f.name });
+      } catch {}
+    }
+
+    // Alertas de ganadería por fechas
+    const hoy = new Date();
+    for (const r of (livestock || [])) {
+      if (!r.proxima) continue;
+      const prox = new Date(r.proxima);
+      const dias = Math.round((prox - hoy) / 86400000);
+      if (dias <= 30 && dias >= 0) {
+        alerts.push({
+          tipo: 'ganaderia',
+          nivel: dias <= 7 ? 'alta' : 'media',
+          titulo: `${r.tipo || 'Evento'} pendiente: ${r.lote || 'lote'}`,
+          detalle: `${r.descripcion || r.tipo} — vence ${dias === 0 ? 'hoy' : `en ${dias} días`}`,
+          accion: 'Programar con el veterinario esta semana',
+          campo: r.lote || 'Ganadería'
+        });
+      } else if (dias < 0) {
+        alerts.push({
+          tipo: 'ganaderia',
+          nivel: 'alta',
+          titulo: `VENCIDO: ${r.tipo || 'evento'} en ${r.lote || 'lote'}`,
+          detalle: `${r.descripcion} venció hace ${Math.abs(dias)} días`,
+          accion: 'Atender urgente con el veterinario',
+          campo: r.lote || 'Ganadería'
+        });
+      }
+    }
+
+    res.json({ alerts: alerts.slice(0, 10) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 app.get('/health', (_, res) => res.json({ status: 'ok', model: GEMINI_MODEL }));
 
