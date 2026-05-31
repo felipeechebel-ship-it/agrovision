@@ -19,37 +19,95 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
+:root{
+  --green-dark:#065f46;
+  --green-mid:#16a34a;
+  --green-light:#4ade80;
+  --earth:#78350f;
+  --glass-bg:rgba(255,255,255,0.94);
+  --glass-border:rgba(255,255,255,0.55);
+  --shadow:0 8px 32px rgba(0,0,0,0.14);
+}
 *{-webkit-tap-highlight-color:transparent;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-text-size-adjust:100%}
-.leaf-bg{background:linear-gradient(135deg,#064e3b 0%,#047857 40%,#16a34a 100%)}
-.glass{backdrop-filter:blur(10px);background:rgba(255,255,255,.92)}
-.drop-zone{border:2px dashed #16a34a;transition:all .2s}
-.drop-zone.dragover{background:#dcfce7;border-color:#065f46}
-#map{height:480px;border-radius:12px}
-.tab-active{background:#16a34a;color:#fff}
-.tab-inactive{background:#f3f4f6;color:#374151}
+body{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  -webkit-text-size-adjust:100%;
+  min-height:100vh;
+  background:
+    linear-gradient(to bottom, rgba(3,20,8,0.80) 0%, rgba(4,28,12,0.72) 50%, rgba(3,18,6,0.78) 100%),
+    url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1920&q=75&fit=crop') center/cover fixed;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+/* Header */
+.app-header{
+  background:linear-gradient(135deg,rgba(4,38,18,0.88) 0%,rgba(5,55,24,0.82) 100%);
+  backdrop-filter:blur(20px) saturate(160%);
+  border-bottom:1px solid rgba(74,222,128,0.15);
+  padding:14px 0 12px;
+}
+/* Glass panels */
+.glass{
+  backdrop-filter:blur(16px) saturate(160%);
+  background:var(--glass-bg);
+  border:1px solid var(--glass-border);
+  box-shadow:var(--shadow);
+}
+/* Tabs */
+.tab-bar{
+  background:rgba(255,255,255,0.88);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid rgba(0,0,0,0.06);
+  border-top:1px solid var(--glass-border);
+}
+.tab-active{
+  background:var(--green-mid);
+  color:#fff;
+  font-weight:600;
+  box-shadow:0 2px 8px rgba(22,163,74,0.35);
+}
+.tab-inactive{
+  background:transparent;
+  color:#4b5563;
+}
+.tab-inactive:hover{background:rgba(22,163,74,0.08);color:var(--green-dark)}
+/* Drop zones */
+.drop-zone{border:2px dashed #86efac;transition:all .2s;background:#f0fdf4}
+.drop-zone.dragover{background:#dcfce7;border-color:var(--green-dark)}
+/* Map */
+#map{height:480px;border-radius:14px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.15)}
+/* Misc */
 .pulse-dot{animation:pulse 1.5s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 .health-bar{height:8px;border-radius:4px;overflow:hidden;background:#e5e7eb}
 .health-fill{height:100%;transition:width 1s}
 details>summary{cursor:pointer;list-style:none}
 details>summary::-webkit-details-marker{display:none}
-.swatch{width:20px;height:20px;border-radius:6px;border:1px solid #d1d5db}
+.swatch{width:18px;height:18px;border-radius:5px;border:1px solid #d1d5db}
 .tabs-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-wrap:nowrap!important}
 .tabs-scroll::-webkit-scrollbar{display:none}
 .tabs-scroll button{flex-shrink:0;white-space:nowrap}
-/* Botones touch: mínimo 44px de alto para dedos */
+/* Touch targets */
 button,select,input{min-height:38px}
 input[type=range]{min-height:20px}
+/* Buttons base */
+button{letter-spacing:0.01em}
 /* Modales */
-#authModal,#planesModal{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:12px}
+#authModal,#planesModal{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.60);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:12px}
 #authModal.open,#planesModal.open{display:flex}
-.auth-tab-active{border-bottom:2px solid #16a34a;color:#065f46;font-weight:700}
+.auth-tab-active{border-bottom:2px solid var(--green-mid);color:var(--green-dark);font-weight:700}
 .auth-tab-inactive{border-bottom:2px solid transparent;color:#6b7280}
-/* Safe area iPhone (notch + home bar) */
-body{padding-bottom:env(safe-area-inset-bottom)}
-.has-safe-bottom{padding-bottom:calc(1rem + env(safe-area-inset-bottom))}
+/* Heading styles */
+.section-title{font-size:1.05rem;font-weight:700;color:#111827;letter-spacing:-0.01em}
+.section-sub{font-size:0.78rem;color:#6b7280;margin-top:2px}
+/* Card style */
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 1px 6px rgba(0,0,0,0.06)}
+/* Btn primary */
+.btn-primary{background:var(--green-mid);color:#fff;font-weight:600;border-radius:10px;padding:9px 18px;font-size:.85rem;transition:background .15s,transform .1s}
+.btn-primary:hover{background:#15803d}
+.btn-primary:active{transform:scale(.97)}
 /* Print */
 @media print{
 body *{visibility:hidden}
@@ -58,19 +116,16 @@ body *{visibility:hidden}
 .print-logo{display:block!important}
 }
 .print-logo{display:none}
-/* Botón editar mensaje: siempre visible en mobile (sin hover) */
+/* Edit button in chat */
 @media(hover:none){
-  .group button[onclick*="editChatMessage"]{opacity:.5!important}
+  .group button[onclick*="editChatMessage"]{opacity:.45!important}
 }
-/* Mobile: mapa más chico, header compacto */
+/* Mobile */
 @media(max-width:640px){
   #map{height:300px}
   .mob-hide{display:none!important}
   .mob-stack{flex-direction:column!important;align-items:stretch!important}
   .mob-full{width:100%!important}
-  .mob-text-sm{font-size:0.75rem!important}
-  .mob-compact-grid{grid-template-columns:1fr!important}
-  /* Paneles con menos padding en mobile */
   main.glass{padding:12px!important}
 }
 @media(max-width:380px){
@@ -78,40 +133,44 @@ body *{visibility:hidden}
 }
 </style>
 </head>
-<body class="leaf-bg min-h-screen">
-<div class="max-w-6xl mx-auto p-3 md:p-8">
-<header class="text-white mb-4 md:mb-6">
-<div class="flex items-center justify-between gap-2">
+<body>
+<header class="app-header mb-0">
+<div class="max-w-6xl mx-auto px-4 md:px-8 flex items-center justify-between gap-3">
   <!-- Logo -->
-  <div class="flex items-center gap-2">
-    <div class="text-4xl md:text-5xl leading-none">🌱</div>
+  <div class="flex items-center gap-3">
+    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0">
+      <rect width="36" height="36" rx="10" fill="#16a34a"/>
+      <ellipse cx="18" cy="15" rx="8" ry="10" fill="#4ade80" transform="rotate(-15 18 15)"/>
+      <ellipse cx="18" cy="15" rx="8" ry="10" fill="#22c55e" transform="rotate(15 18 15)"/>
+      <rect x="17" y="22" width="2.5" height="7" rx="1.25" fill="#15803d"/>
+    </svg>
     <div>
-      <h1 class="text-2xl md:text-4xl font-bold leading-tight">AgroVisión</h1>
-      <p class="text-emerald-100 text-xs md:text-sm hidden sm:block">Tu ingeniero agrónomo asistido por IA</p>
+      <h1 class="text-white font-extrabold text-xl md:text-2xl leading-tight tracking-tight">AgroVisión</h1>
+      <p class="text-green-300/80 text-xs hidden sm:block font-medium">Plataforma agronómica con inteligencia artificial</p>
     </div>
   </div>
   <!-- Área de usuario -->
-  <div id="userArea" class="flex items-center gap-1.5 md:gap-2">
-    <!-- Estado no logueado -->
-    <div id="areaGuest" class="flex items-center gap-1.5">
-      <span class="text-xs text-emerald-200 hidden md:inline">⚡ 5 análisis/día gratis</span>
-      <button onclick="openAuthModal('register')" class="bg-emerald-500 hover:bg-emerald-400 text-white px-3 py-2 rounded-lg text-xs font-semibold transition hidden sm:block">✅ Registrarse</button>
-      <button onclick="openAuthModal('login')" class="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-3 py-2 rounded-lg text-xs font-medium transition">🔑 Ingresar</button>
+  <div id="userArea" class="flex items-center gap-2">
+    <div id="areaGuest" class="flex items-center gap-2">
+      <span class="text-xs text-green-300/70 hidden md:inline">5 análisis/día · cuenta gratuita</span>
+      <button onclick="openAuthModal('register')" class="bg-green-500 hover:bg-green-400 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition hidden sm:block">Crear cuenta</button>
+      <button onclick="openAuthModal('login')" class="bg-white/15 hover:bg-white/25 text-white border border-white/30 px-3 py-1.5 rounded-lg text-xs font-medium transition">Ingresar</button>
     </div>
-    <!-- Estado logueado -->
-    <div id="areaUser" class="hidden flex items-center gap-1.5">
-      <button id="userBadge" onclick="openPlanesModal()" class="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-2 rounded-lg text-white font-medium transition max-w-40 truncate"></button>
-      <button onclick="doLogout()" class="bg-white/10 hover:bg-white/20 text-white border border-white/30 px-2.5 py-2 rounded-lg text-xs transition">Salir</button>
+    <div id="areaUser" class="hidden flex items-center gap-2">
+      <button id="userBadge" onclick="openPlanesModal()" class="text-xs bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-lg text-white/90 font-medium transition max-w-44 truncate border border-white/20"></button>
+      <button onclick="doLogout()" class="text-white/60 hover:text-white text-xs px-2 py-1.5 transition">Salir</button>
     </div>
   </div>
 </div>
 </header>
 
+<div class="max-w-6xl mx-auto px-3 md:px-8 py-4 md:py-6">
+
 <!-- ─── MODAL AUTH ────────────────────────────────────────────────────────── -->
 <div id="authModal" role="dialog" aria-modal="true">
 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
   <!-- Cabecera -->
-  <div class="leaf-bg px-6 pt-6 pb-4">
+  <div class="app-header px-6 pt-5 pb-4">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2"><div class="text-3xl">🌱</div><span class="text-white font-bold text-lg">AgroVisión</span></div>
       <button onclick="closeAuthModal()" class="text-white/70 hover:text-white text-2xl leading-none">&times;</button>
@@ -161,7 +220,7 @@ body *{visibility:hidden}
 <!-- ─── MODAL PLANES ──────────────────────────────────────────────────────── -->
 <div id="planesModal" role="dialog" aria-modal="true">
 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" style="max-height:92vh;overflow-y:auto">
-  <div class="leaf-bg px-6 pt-6 pb-4">
+  <div class="app-header px-6 pt-5 pb-4">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2"><div class="text-3xl">🌱</div><span class="text-white font-bold text-lg">Planes AgroVisión</span></div>
       <button onclick="closePlanesModal()" class="text-white/70 hover:text-white text-2xl leading-none">&times;</button>
@@ -290,16 +349,16 @@ body *{visibility:hidden}
 </div>
 </div>
 
-<div class="glass rounded-t-2xl p-2 flex gap-2 tabs-scroll">
-<button id="tab-foto" class="tab-active px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('foto')">📷 Foto</button>
-<button id="tab-sat" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('sat')">🛰️ Satelital</button>
-<button id="tab-chat" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('chat')">💬 Consulta IA</button>
-<button id="tab-weed" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('weed')">🌿 Malezas</button>
-<button id="tab-cow" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('cow')">🐄 Ganado</button>
-<button id="tab-market" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('market')">💰 Mercado</button>
-<button id="tab-campos" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('campos')">🗺️ Mis Campos</button>
-<button id="tab-registros" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('registros')">📋 Registros</button>
-<button id="tab-clima" class="tab-inactive px-4 py-2 rounded-lg font-medium text-sm" onclick="switchTab('clima')">🌤️ Clima</button>
+<div class="tab-bar rounded-t-2xl px-2 py-2 flex gap-1 tabs-scroll">
+<button id="tab-foto"      class="tab-active     px-3.5 py-2 rounded-lg text-sm font-medium transition" onclick="switchTab('foto')">Análisis de foto</button>
+<button id="tab-sat"       class="tab-inactive   px-3.5 py-2 rounded-lg text-sm font-medium transition" onclick="switchTab('sat')">Satelital</button>
+<button id="tab-chat"      class="tab-inactive   px-3.5 py-2 rounded-lg text-sm font-medium transition" onclick="switchTab('chat')">Agrónomo IA</button>
+<button id="tab-weed"      class="tab-inactive   px-3.5 py-2 rounded-lg text-sm font-medium transition" onclick="switchTab('weed')">Malezas</button>
+<button id="tab-cow"       class="tab-inactive   px-3.5 py-2 rounded-lg text-sm font-medium transition" onclick="switchTab('cow')">Ganado</button>
+<button id="tab-market"    class="tab-inactive   px-3.5 py-2 rounded-lg text-sm font-medium transition" onclick="switchTab('market')">Mercado</button>
+<button id="tab-campos"    class="tab-inactive   px-3.5 py-2 rounded-lg text-sm font-medium transition" onclick="switchTab('campos')">Mis Campos</button>
+<button id="tab-registros" class="tab-inactive   px-3.5 py-2 rounded-lg text-sm font-medium transition" onclick="switchTab('registros')">Registros</button>
+<button id="tab-clima"     class="tab-inactive   px-3.5 py-2 rounded-lg text-sm font-medium transition" onclick="switchTab('clima')">Clima</button>
 </div>
 
 <main class="glass rounded-b-2xl p-3 md:p-6 shadow-2xl">
@@ -381,7 +440,7 @@ body *{visibility:hidden}
 </section>
 
 <section id="panel-sat" class="hidden">
-<h2 class="text-lg font-semibold text-gray-800 mb-1">🛰️ Vista satelital con NDVI</h2>
+<h2 class="section-title mb-1">Vista satelital — NDVI</h2>
 <p class="text-xs text-gray-500 mb-3 hidden sm:block">NDVI muestra qué tan verde está la vegetación. Verde fuerte = vigoroso. Marrón = estrés. <b>Sin datos → retrocedé la fecha</b>.</p>
 <!-- Fila 1: búsqueda -->
 <div class="flex gap-2 mb-2">
@@ -512,7 +571,7 @@ body *{visibility:hidden}
 <section id="panel-chat" class="hidden">
 <div class="flex items-center justify-between mb-2">
   <div>
-    <h2 class="text-lg font-semibold text-gray-800">💬 Agrónomo IA</h2>
+    <h2 class="section-title">Agrónomo IA</h2>
     <p class="text-xs text-gray-500 hidden sm:block">Consultá sobre pasturas, hacienda, cultivos, suelos o cualquier tema del campo</p>
   </div>
   <button onclick="newChat()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold">✏️ Nuevo chat</button>
@@ -554,7 +613,7 @@ body *{visibility:hidden}
 </section>
 
 <section id="panel-weed" class="hidden">
-<h2 class="text-lg font-semibold text-gray-800 mb-1">🌿 Identificador de Malezas</h2>
+<h2 class="section-title mb-1">Identificación de Malezas</h2>
 <p class="text-sm text-gray-600 mb-3">Subí una foto de la maleza y la IA la identifica con nombre, familia, ciclo, control químico y cultural específico para Uruguay.</p>
 <div class="grid md:grid-cols-2 gap-6">
 <div>
@@ -591,7 +650,7 @@ body *{visibility:hidden}
 </section>
 
 <section id="panel-cow" class="hidden">
-<h2 class="text-lg font-semibold text-gray-800 mb-1">🐄 Estimador de peso de ganado</h2>
+<h2 class="section-title mb-1">🐄 Estimador de peso de ganado</h2>
 <p class="text-sm text-gray-600 mb-3">Subí foto de la vaca/toro y la IA te estima peso, raza, condición corporal y categoría. <b>Estimación, no medición exacta</b> (±50-100 kg con buena foto). Para mejor precisión: foto de <b>perfil</b> y con un objeto de referencia (persona, poste, alambrado).</p>
 <div class="grid md:grid-cols-2 gap-6">
 <div>
@@ -667,7 +726,7 @@ body *{visibility:hidden}
 
 <!-- ─── PANEL MERCADO ──────────────────────────────────────────────────────── -->
 <section id="panel-market" class="hidden">
-<h2 class="text-lg font-semibold text-gray-800 mb-1">💰 Precios de mercado</h2>
+<h2 class="section-title mb-1">💰 Precios de mercado</h2>
 <p class="text-sm text-gray-500 mb-4">Commodities CBOT en tiempo real. Referencia internacional — para precios locales consultá tu acopiador o OPYPA.</p>
 
 <div class="flex flex-wrap gap-2 mb-4">
@@ -701,7 +760,7 @@ body *{visibility:hidden}
 
 <!-- ─── PANEL MIS CAMPOS ───────────────────────────────────────────────────── -->
 <section id="panel-campos" class="hidden">
-<h2 class="text-lg font-semibold text-gray-800 mb-1">🗺️ Mis Campos</h2>
+<h2 class="section-title mb-1">Mis Campos</h2>
 <p class="text-sm text-gray-500 mb-4">Guardá tus potreros y obtené análisis de suelo y alertas proactivas para cada uno.</p>
 
 <div class="bg-white border border-gray-200 rounded-xl p-4 mb-4">
@@ -736,7 +795,7 @@ body *{visibility:hidden}
 
 <!-- ─── PANEL REGISTROS ───────────────────────────────────────────────────── -->
 <section id="panel-registros" class="hidden">
-<h2 class="text-lg font-semibold text-gray-800 mb-1">📋 Registros y Alertas</h2>
+<h2 class="section-title mb-1">Registros y Alertas</h2>
 
 <div class="flex gap-2 mb-4 border-b border-gray-200 pb-2">
   <button id="regTabGan" onclick="switchRegTab('gan')" class="text-sm px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium">🐄 Ganadería</button>
@@ -787,7 +846,7 @@ body *{visibility:hidden}
 
 <!-- ─── PANEL CLIMA ──────────────────────────────────────────────────────── -->
 <section id="panel-clima" class="hidden">
-<h2 class="text-lg font-semibold text-gray-800 mb-1">🌤️ Clima agrícola</h2>
+<h2 class="section-title mb-1">Clima agrícola</h2>
 <p class="text-sm text-gray-500 mb-4">Pronóstico meteorológico para tu campo. 7 días + indicadores agronómicos (ETP, balance hídrico). Datos: Open-Meteo.</p>
 
 <div class="flex flex-wrap gap-2 mb-4">
@@ -824,8 +883,11 @@ body *{visibility:hidden}
     <button onclick="dismissPWA()" class="flex-shrink-0 text-emerald-300 hover:text-white text-xl leading-none px-1">&times;</button>
   </div>
 </div>
-<footer class="text-emerald-100 text-xs text-center mt-6 opacity-80" style="padding-bottom:calc(5rem + env(safe-area-inset-bottom))">AgroVisión · NDVI: NASA GIBS · No reemplaza la visita de un agrónomo a campo<br><span class="opacity-60">Powered by Vortex</span></footer>
-</div>
+<footer class="text-white/40 text-xs text-center mt-8" style="padding-bottom:calc(5rem + env(safe-area-inset-bottom))">
+  AgroVisión &nbsp;·&nbsp; Imágenes satelitales: NASA GIBS &nbsp;·&nbsp; No reemplaza la consulta con un agrónomo profesional
+  <br><span class="opacity-60">Desarrollado con Inteligencia Artificial · Powered by Vortex</span>
+</footer>
+</div><!-- /container -->
 
 <script>
 // Encodes JSON body as UTF-8 bytes to avoid "Cannot convert to ByteString" in all browsers
