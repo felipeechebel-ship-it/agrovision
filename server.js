@@ -1,39 +1,9 @@
 require('dotenv').config();
 const nodeFetch = require('node-fetch');
-
-// Parcha set() y append() de una clase Headers para que no lance
-// "Cannot convert to ByteString" cuando el valor tiene emoji (> U+00FF).
-function patchHeaders(H) {
-  if (!H || !H.prototype) return;
-  const _s = H.prototype.set;
-  const _a = H.prototype.append;
-  H.prototype.set = function(n, v) {
-    return _s.call(this, n, typeof v === 'string' ? v.replace(/[^\x00-\xFF]/g, '') : v);
-  };
-  H.prototype.append = function(n, v) {
-    return _a.call(this, n, typeof v === 'string' ? v.replace(/[^\x00-\xFF]/g, '') : v);
-  };
-}
-
-// 1) Parchear node-fetch Headers (para nuestras llamadas)
-patchHeaders(nodeFetch.Headers);
-
-// 2) Parchear undici Headers DIRECTAMENTE — @supabase/auth-js usa undici
-//    internamente sin pasar por global.fetch, así que el parche global no alcanza.
-try { patchHeaders(require('node:undici').Headers); } catch(_) {}
-try { patchHeaders(require('undici').Headers); }     catch(_) {}
-
-// Setear global fetch a node-fetch para nuestras propias llamadas
-global.fetch    = nodeFetch;
-global.Headers  = nodeFetch.Headers;
-global.Request  = nodeFetch.Request;
-global.Response = nodeFetch.Response;
-
-const express = require('express');
+const express   = require('express');
 const rateLimit = require('express-rate-limit');
-const path = require('path');
-const { createClient } = require('@supabase/supabase-js');
-const ws = require('ws');
+const path      = require('path');
+const ws        = require('ws');
 
 const app = express();
 app.use(express.json({ limit: '15mb' }));
@@ -42,27 +12,91 @@ app.use(express.static(path.join(__dirname, 'public')));
 const GEMINI_KEY   = process.env.GEMINI_KEY;
 const PLANET_KEY   = process.env.PLANET_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const SUPA_URL     = process.env.SUPABASE_URL;
+const SUPA_KEY     = process.env.SUPABASE_SECRET_KEY;
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SECRET_KEY,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-    global: { fetch: nodeFetch },
-    realtime: { transport: ws }
-  }
-);
+// ─── Helpers REST directo a Supabase (sin @supabase/supabase-js ni auth-js) ──
 
-// 30 requests por minuto por IP
+function supaHeaders(extra = {}) {
+  return {
+    'apikey': SUPA_KEY,
+    'Authorization': `Bearer ${SUPA_KEY}`,
+    'Content-Type': 'application/json',
+    ...extra
+  };
+}
+
+// GET /rest/v1/:table?col=eq.val  → primer registro o null
+async function dbGet(table, match, select = '*') {
+  const qs = Object.entries(match).map(([k, v]) => `${k}=eq.${encodeURIComponent(v)}`).join('&');
+  const r = await nodeFetch(`${SUPA_URL}/rest/v1/${table}?${qs}&select=${select}`, {
+    headers: supaHeaders()
+  });
+  const rows = await r.json();
+  return Array.isArray(rows) ? (rows[0] || null) : null;
+}
+
+// POST /rest/v1/:table
+async function dbInsert(table, row) {
+  const r = await nodeFetch(`${SUPA_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: supaHeaders({ 'Prefer': 'return=minimal' }),
+    body: JSON.stringify(row)
+  });
+  return r.ok;
+}
+
+// PATCH /rest/v1/:table?col=eq.val
+async function dbUpdate(table, match, updates) {
+  const qs = Object.entries(match).map(([k, v]) => `${k}=eq.${encodeURIComponent(v)}`).join('&');
+  const r = await nodeFetch(`${SUPA_URL}/rest/v1/${table}?${qs}`, {
+    method: 'PATCH',
+    headers: supaHeaders({ 'Prefer': 'return=minimal' }),
+    body: JSON.stringify(updates)
+  });
+  return r.ok;
+}
+
+// Auth: verificar token JWT
+async function authGetUser(token) {
+  const r = await nodeFetch(`${SUPA_URL}/auth/v1/user`, {
+    headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${token}` }
+  });
+  if (!r.ok) return null;
+  const u = await r.json();
+  return u?.id ? u : null;
+}
+
+// Auth: crear usuario (admin)
+async function authCreateUser(email, password) {
+  const r = await nodeFetch(`${SUPA_URL}/auth/v1/admin/users`, {
+    method: 'POST',
+    headers: supaHeaders(),
+    body: JSON.stringify({ email, password, email_confirm: true })
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.msg || data.message || 'Error creando usuario');
+  return data; // { id, email, ... }
+}
+
+// Auth: login con email+password
+async function authSignIn(email, password) {
+  const r = await nodeFetch(`${SUPA_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: supaHeaders(),
+    body: JSON.stringify({ email, password })
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error_description || data.msg || 'Credenciales incorrectas');
+  return data; // { access_token, user: { id, ... }, ... }
+}
+
+// ─── Rate limit ───────────────────────────────────────────────────────────────
 const limiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false });
 app.use('/api', limiter);
 
-// ─── Contador en memoria para anónimos (IP) ─────────────────────────────────
-const anonCounters = {}; // { ip: { count, date } }
+// ─── Contador en memoria para anónimos (IP) ───────────────────────────────────
+const anonCounters = {};
 const ANON_DAILY_LIMIT = 3;
 const FREE_DAILY_LIMIT = 5;
 
@@ -70,7 +104,7 @@ function getTodayStr() {
   return new Date().toISOString().split('T')[0];
 }
 
-// ─── MIDDLEWARE: verificar token de sesión ───────────────────────────────────
+// ─── MIDDLEWARE: verificar token de sesión ────────────────────────────────────
 async function checkAuth(req, res, next) {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
@@ -79,23 +113,10 @@ async function checkAuth(req, res, next) {
   if (!token) return next();
 
   try {
-    // Llamada directa a la API REST de Supabase (evita ByteString error de auth-js/undici)
-    const authRes = await nodeFetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
-      headers: {
-        'apikey': process.env.SUPABASE_SECRET_KEY,
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    if (!authRes.ok) return next();
-    const user = await authRes.json();
-    if (!user || !user.id) return next();
+    const user = await authGetUser(token);
+    if (!user) return next();
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
+    const profile = await dbGet('profiles', { id: user.id });
     if (profile) req.user = profile;
   } catch (e) {
     // token inválido → usuario anónimo
@@ -103,11 +124,10 @@ async function checkAuth(req, res, next) {
   next();
 }
 
-// ─── MIDDLEWARE: límites por plan ────────────────────────────────────────────
+// ─── MIDDLEWARE: límites por plan ─────────────────────────────────────────────
 async function checkLimit(req, res, next) {
   const today = getTodayStr();
 
-  // Usuario anónimo
   if (!req.user) {
     const ip = req.ip || req.connection.remoteAddress || 'unknown';
     if (!anonCounters[ip] || anonCounters[ip].date !== today) {
@@ -120,44 +140,30 @@ async function checkLimit(req, res, next) {
     return next();
   }
 
-  // Plan pro o familia → sin límite
   if (req.user.plan === 'pro' || req.user.plan === 'familia') return next();
 
-  // Plan free → límite diario con reset cada 24h
-  const fechaReset = req.user.fecha_reset
-    ? req.user.fecha_reset.split('T')[0]
-    : null;
-
+  const fechaReset = req.user.fecha_reset ? req.user.fecha_reset.split('T')[0] : null;
   let analisisHoy = req.user.analisis_hoy || 0;
 
   if (fechaReset !== today) {
-    // Resetear contador
     analisisHoy = 0;
-    await supabase
-      .from('profiles')
-      .update({ analisis_hoy: 0, fecha_reset: new Date().toISOString() })
-      .eq('id', req.user.id);
+    await dbUpdate('profiles', { id: req.user.id }, { analisis_hoy: 0, fecha_reset: new Date().toISOString() });
   }
 
   if (analisisHoy >= FREE_DAILY_LIMIT) {
     return res.status(429).json({ error: 'LIMIT_REACHED', plan: 'free' });
   }
 
-  // Incrementar contador
-  await supabase
-    .from('profiles')
-    .update({ analisis_hoy: analisisHoy + 1 })
-    .eq('id', req.user.id);
-
+  await dbUpdate('profiles', { id: req.user.id }, { analisis_hoy: analisisHoy + 1 });
   next();
 }
 
-// ─── helper: llama a Gemini ──────────────────────────────────────────────────
+// ─── Helper: llama a Gemini ───────────────────────────────────────────────────
 async function gemini(parts, maxTokens = 4000, jsonMode = false) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
   const config = { maxOutputTokens: maxTokens, temperature: 0.3 };
   if (jsonMode) config.responseMimeType = 'application/json';
-  const res = await fetch(url, {
+  const res = await nodeFetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ contents: [{ parts }], generationConfig: config })
@@ -171,7 +177,7 @@ async function gemini(parts, maxTokens = 4000, jsonMode = false) {
   return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
-// ─── AUTH: REGISTRO ──────────────────────────────────────────────────────────
+// ─── AUTH: REGISTRO ───────────────────────────────────────────────────────────
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password, nombre } = req.body;
@@ -179,44 +185,24 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'email, password y nombre son requeridos' });
     }
 
-    // Llamada directa a la API REST de Supabase Admin (evita ByteString error de auth-js/undici)
-    const authRes = await nodeFetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': process.env.SUPABASE_SECRET_KEY,
-        'Authorization': `Bearer ${process.env.SUPABASE_SECRET_KEY}`
-      },
-      body: JSON.stringify({ email, password, email_confirm: true })
+    const user = await authCreateUser(email, password);
+
+    await dbInsert('profiles', {
+      id: user.id,
+      email,
+      nombre,
+      plan: 'free',
+      analisis_hoy: 0,
+      fecha_reset: new Date().toISOString()
     });
-    const authData = await authRes.json();
-    if (!authRes.ok) return res.status(400).json({ error: authData.msg || authData.message || 'Error creando usuario' });
-
-    const user = authData;
-
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        id: user.id,
-        email,
-        nombre,
-        plan: 'free',
-        analisis_hoy: 0,
-        fecha_reset: new Date().toISOString()
-      });
-
-    if (profileError) {
-      // Si falla el perfil, igualmente el user quedó creado — no es crítico
-      console.error('Error creando perfil:', profileError.message);
-    }
 
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(400).json({ error: e.message });
   }
 });
 
-// ─── AUTH: LOGIN ─────────────────────────────────────────────────────────────
+// ─── AUTH: LOGIN ──────────────────────────────────────────────────────────────
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -224,56 +210,36 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ error: 'email y password son requeridos' });
     }
 
-    // Llamada directa a la API REST de Supabase (evita ByteString error de auth-js/undici)
-    const authRes = await nodeFetch(
-      `${process.env.SUPABASE_URL}/auth/v1/token?grant_type=password`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': process.env.SUPABASE_SECRET_KEY,
-          'Authorization': `Bearer ${process.env.SUPABASE_SECRET_KEY}`
-        },
-        body: JSON.stringify({ email, password })
-      }
-    );
-    const authData = await authRes.json();
-    if (!authRes.ok) return res.status(401).json({ error: authData.error_description || authData.msg || 'Credenciales incorrectas' });
+    const session = await authSignIn(email, password);
+    const userId  = session.user?.id;
 
-    const session = authData;
-    const userId  = authData.user?.id;
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('email, nombre, plan')
-      .eq('id', userId)
-      .single();
+    const profile = await dbGet('profiles', { id: userId }, 'email,nombre,plan');
 
     res.json({
       token: session.access_token,
       user: {
-        email: profile?.email || email,
+        email:  profile?.email  || email,
         nombre: profile?.nombre || '',
-        plan: profile?.plan || 'free'
+        plan:   profile?.plan   || 'free'
       }
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(401).json({ error: e.message });
   }
 });
 
-// ─── AUTH: ME ────────────────────────────────────────────────────────────────
+// ─── AUTH: ME ─────────────────────────────────────────────────────────────────
 app.get('/api/auth/me', checkAuth, async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'No autenticado' });
   res.json({ user: req.user });
 });
 
-// ─── AUTH: LOGOUT ────────────────────────────────────────────────────────────
+// ─── AUTH: LOGOUT ─────────────────────────────────────────────────────────────
 app.post('/api/auth/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-// ─── ANÁLISIS DE FOTO ────────────────────────────────────────────────────────
+// ─── ANÁLISIS DE FOTO ─────────────────────────────────────────────────────────
 app.post('/api/vision', checkAuth, checkLimit, async (req, res) => {
   try {
     const { image, mimeType, image2, mimeType2, vegType, notes, stats, weather } = req.body;
@@ -298,6 +264,7 @@ Respondés en español rioplatense. Estructurá tu respuesta en 5 secciones nume
 5) Qué confirmar (análisis o pruebas)
 
 Sé concreto, profesional y accionable. Si la pastura está bien, decilo claramente.`;
+
     const greenPct = ((stats?.greenDark || 0) + (stats?.greenLight || 0)).toFixed(1);
     let weatherCtx = '';
     if (weather) weatherCtx = `\nClima actual en la zona: ${weather.temp}°C, precipitación reciente ${weather.precip}mm, viento ${weather.wind}km/h.`;
@@ -319,7 +286,7 @@ Analizá la imagen con tu criterio profesional y dá un diagnóstico preciso.`;
   }
 });
 
-// ─── ANÁLISIS DE GANADO ──────────────────────────────────────────────────────
+// ─── ANÁLISIS DE GANADO ───────────────────────────────────────────────────────
 app.post('/api/cow', checkAuth, checkLimit, async (req, res) => {
   try {
     const { image, mimeType, cowType, breed, view, ref, notes } = req.body;
@@ -340,7 +307,7 @@ Respondé en JSON puro (sin markdown):
   }
 });
 
-// ─── MALEZAS ─────────────────────────────────────────────────────────────────
+// ─── MALEZAS ──────────────────────────────────────────────────────────────────
 app.post('/api/weed', checkAuth, checkLimit, async (req, res) => {
   try {
     const { image, mimeType, crop } = req.body;
@@ -365,7 +332,7 @@ Respondé con:
   }
 });
 
-// ─── ANÁLISIS DE CAMPO POR CUADRANTES ───────────────────────────────────────
+// ─── ANÁLISIS DE CAMPO POR CUADRANTES ────────────────────────────────────────
 app.post('/api/field', checkAuth, checkLimit, async (req, res) => {
   try {
     const { quads, crop, lat, lon, season, date, country } = req.body;
@@ -389,7 +356,7 @@ Respondé en JSON puro:
   }
 });
 
-// ─── CHAT AGRÓNOMO ───────────────────────────────────────────────────────────
+// ─── CHAT AGRÓNOMO ────────────────────────────────────────────────────────────
 app.post('/api/chat', async (req, res) => {
   try {
     const { messages } = req.body;
@@ -402,7 +369,7 @@ app.post('/api/chat', async (req, res) => {
       contents: messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
       generationConfig: { maxOutputTokens: 1500, temperature: 0.4 }
     };
-    const gemRes = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const gemRes = await nodeFetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const dt = await gemRes.json();
     if (!gemRes.ok) { const e = new Error(dt.error?.message); e.status = gemRes.status; throw e; }
     res.json({ text: dt.candidates?.[0]?.content?.parts?.[0]?.text || '' });
@@ -411,7 +378,7 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-// ─── PLANET TILE PROXY ───────────────────────────────────────────────────────
+// ─── PLANET TILE PROXY ────────────────────────────────────────────────────────
 app.get('/api/planet/tile/:z/:x/:y', async (req, res) => {
   try {
     if (!PLANET_KEY) return res.status(503).end();
@@ -421,7 +388,7 @@ app.get('/api/planet/tile/:z/:x/:y', async (req, res) => {
       ? `planet_medres_normalized_analytic_${year}-${month}_mosaic`
       : `planet_medres_visual_${year}-${month}_mosaic`;
     const url = `https://tiles.planet.com/basemaps/v1/planet-tiles/${mosaic}/gmap/${z}/${x}/${y}.png?api_key=${PLANET_KEY}`;
-    const tile = await fetch(url);
+    const tile = await nodeFetch(url);
     if (!tile.ok) return res.status(tile.status).end();
     res.set('Content-Type', 'image/png');
     res.set('Cache-Control', 'public, max-age=86400');
@@ -432,7 +399,7 @@ app.get('/api/planet/tile/:z/:x/:y', async (req, res) => {
   }
 });
 
-// ─── HEALTH CHECK ────────────────────────────────────────────────────────────
+// ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 app.get('/health', (_, res) => res.json({ status: 'ok', model: GEMINI_MODEL }));
 
 const PORT = process.env.PORT || 3000;
