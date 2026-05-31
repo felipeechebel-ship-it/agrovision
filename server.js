@@ -96,8 +96,8 @@ app.use('/api', limiter);
 
 // ─── Contador en memoria para anónimos (IP) ───────────────────────────────────
 const anonCounters = {};
-const ANON_DAILY_LIMIT = 5;
-const FREE_DAILY_LIMIT = 15;
+const ANON_DAILY_LIMIT = 10;
+const FREE_DAILY_LIMIT = 10;
 
 function getTodayStr() {
   return new Date().toISOString().split('T')[0];
