@@ -138,15 +138,31 @@ body *{visibility:hidden}
 <div class="max-w-6xl mx-auto px-4 md:px-8 flex items-center justify-between gap-3">
   <!-- Logo -->
   <div class="flex items-center gap-3">
-    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0">
-      <rect width="36" height="36" rx="10" fill="#16a34a"/>
-      <ellipse cx="18" cy="15" rx="8" ry="10" fill="#4ade80" transform="rotate(-15 18 15)"/>
-      <ellipse cx="18" cy="15" rx="8" ry="10" fill="#22c55e" transform="rotate(15 18 15)"/>
-      <rect x="17" y="22" width="2.5" height="7" rx="1.25" fill="#15803d"/>
+    <!-- Ícono: hoja + brillo, esquinas redondeadas -->
+    <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0" style="filter:drop-shadow(0 2px 8px rgba(74,222,128,0.35))">
+      <rect width="44" height="44" rx="13" fill="url(#logoGrad)"/>
+      <!-- Hoja izquierda -->
+      <path d="M22 34 C14 34 8 26 10 16 C13 10 20 8 22 8 C22 8 16 18 22 34Z" fill="#bbf7d0" opacity="0.7"/>
+      <!-- Hoja derecha -->
+      <path d="M22 34 C30 34 36 26 34 16 C31 10 24 8 22 8 C22 8 28 18 22 34Z" fill="#4ade80"/>
+      <!-- Nervio central -->
+      <path d="M22 34 L22 14" stroke="#15803d" stroke-width="1.4" stroke-linecap="round"/>
+      <!-- Nerviaciones -->
+      <path d="M22 24 L17 20M22 20 L17 17M22 28 L17 25" stroke="#15803d" stroke-width="0.9" stroke-linecap="round" opacity="0.7"/>
+      <!-- Brillo superior -->
+      <ellipse cx="18" cy="15" rx="4" ry="5" fill="white" opacity="0.12" transform="rotate(-20 18 15)"/>
+      <defs>
+        <linearGradient id="logoGrad" x1="0" y1="0" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#16a34a"/>
+          <stop offset="100%" stop-color="#065f46"/>
+        </linearGradient>
+      </defs>
     </svg>
     <div>
-      <h1 class="text-white font-extrabold text-xl md:text-2xl leading-tight tracking-tight">AgroVisión</h1>
-      <p class="text-green-300/80 text-xs hidden sm:block font-medium">Plataforma agronómica con inteligencia artificial</p>
+      <div class="flex items-baseline gap-1.5">
+        <h1 class="text-white font-extrabold text-xl md:text-2xl leading-none tracking-tight">Agro</h1><h1 class="font-extrabold text-xl md:text-2xl leading-none tracking-tight" style="color:#4ade80">Visión</h1>
+      </div>
+      <p class="text-green-300/70 text-xs hidden sm:block font-medium tracking-wide mt-0.5">Agrónomo IA · Uruguay</p>
     </div>
   </div>
   <!-- Área de usuario -->
