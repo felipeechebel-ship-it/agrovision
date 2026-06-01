@@ -138,25 +138,28 @@ body *{visibility:hidden}
 <div class="max-w-6xl mx-auto px-4 md:px-8 flex items-center justify-between gap-3">
   <!-- Logo -->
   <div class="flex items-center gap-3">
-    <!-- Ícono: hoja + brillo, esquinas redondeadas -->
-    <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0" style="filter:drop-shadow(0 2px 8px rgba(74,222,128,0.35))">
-      <rect width="44" height="44" rx="13" fill="url(#logoGrad)"/>
-      <!-- Hoja izquierda -->
-      <path d="M22 34 C14 34 8 26 10 16 C13 10 20 8 22 8 C22 8 16 18 22 34Z" fill="#bbf7d0" opacity="0.7"/>
-      <!-- Hoja derecha -->
-      <path d="M22 34 C30 34 36 26 34 16 C31 10 24 8 22 8 C22 8 28 18 22 34Z" fill="#4ade80"/>
-      <!-- Nervio central -->
-      <path d="M22 34 L22 14" stroke="#15803d" stroke-width="1.4" stroke-linecap="round"/>
-      <!-- Nerviaciones -->
-      <path d="M22 24 L17 20M22 20 L17 17M22 28 L17 25" stroke="#15803d" stroke-width="0.9" stroke-linecap="round" opacity="0.7"/>
-      <!-- Brillo superior -->
-      <ellipse cx="18" cy="15" rx="4" ry="5" fill="white" opacity="0.12" transform="rotate(-20 18 15)"/>
+    <!-- Ícono: letra A con plantitas -->
+    <svg width="46" height="46" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0" style="filter:drop-shadow(0 2px 10px rgba(74,222,128,0.40))">
       <defs>
-        <linearGradient id="logoGrad" x1="0" y1="0" x2="44" y2="44" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stop-color="#16a34a"/>
+        <linearGradient id="logoGrad" x1="0" y1="0" x2="46" y2="46" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#22c55e"/>
           <stop offset="100%" stop-color="#065f46"/>
         </linearGradient>
       </defs>
+      <rect width="46" height="46" rx="13" fill="url(#logoGrad)"/>
+      <!-- Letra A (patas) -->
+      <path d="M9 39 L23 12 L37 39" stroke="white" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <!-- Letra A (travesaño) -->
+      <line x1="15" y1="28" x2="31" y2="28" stroke="white" stroke-width="3.6" stroke-linecap="round"/>
+      <!-- Tallo de la planta desde el pico de la A -->
+      <line x1="23" y1="12" x2="23" y2="5" stroke="#86efac" stroke-width="2" stroke-linecap="round"/>
+      <!-- Hoja izquierda -->
+      <path d="M23 9 C21 8 17 6.5 17 5.5 C18.5 5.5 21.5 7 23 8.5Z" fill="#4ade80"/>
+      <!-- Hoja derecha -->
+      <path d="M23 8 C25 7 29 5.5 29 4.5 C27.5 4.5 24.5 6 23 7.5Z" fill="#bbf7d0"/>
+      <!-- Brote en la punta -->
+      <circle cx="23" cy="4.5" r="2.2" fill="#4ade80"/>
+      <circle cx="23" cy="4.5" r="1.1" fill="#bbf7d0"/>
     </svg>
     <div>
       <div class="flex items-baseline gap-1.5">

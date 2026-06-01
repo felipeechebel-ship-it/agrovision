@@ -1,26 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#16a34a"/>
+      <stop offset="0%" stop-color="#22c55e"/>
       <stop offset="100%" stop-color="#065f46"/>
     </linearGradient>
   </defs>
+
   <!-- Fondo redondeado -->
-  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
-  <!-- Sombra/profundidad central -->
-  <circle cx="256" cy="256" r="190" fill="#052e16" opacity="0.18"/>
-  <!-- Hoja izquierda (más clara) -->
-  <path d="M256 420 C160 420 90 320 110 190 C130 110 210 80 256 80 C256 80 190 220 256 420Z"
-        fill="#bbf7d0" opacity="0.75"/>
-  <!-- Hoja derecha (verde vivo) -->
-  <path d="M256 420 C352 420 422 320 402 190 C382 110 302 80 256 80 C256 80 322 220 256 420Z"
-        fill="#4ade80"/>
-  <!-- Nervio central -->
-  <path d="M256 420 L256 130" stroke="#15803d" stroke-width="14" stroke-linecap="round"/>
-  <!-- Nerviaciones izquierda -->
-  <path d="M256 290 L185 245" stroke="#15803d" stroke-width="9" stroke-linecap="round" opacity="0.8"/>
-  <path d="M256 240 L185 200" stroke="#15803d" stroke-width="9" stroke-linecap="round" opacity="0.8"/>
-  <path d="M256 340 L190 305" stroke="#15803d" stroke-width="9" stroke-linecap="round" opacity="0.8"/>
-  <!-- Brillo superior izquierdo -->
-  <ellipse cx="218" cy="190" rx="42" ry="65" fill="white" opacity="0.10" transform="rotate(-20 218 190)"/>
+  <rect width="512" height="512" rx="115" fill="url(#bg)"/>
+
+  <!-- ── Letra A ── -->
+  <!-- Pata izquierda -->
+  <line x1="80" y1="430" x2="256" y2="120" stroke="white" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Pata derecha -->
+  <line x1="432" y1="430" x2="256" y2="120" stroke="white" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Travesaño -->
+  <line x1="152" y1="300" x2="360" y2="300" stroke="white" stroke-width="46" stroke-linecap="round"/>
+
+  <!-- ── Planta desde la punta de la A ── -->
+  <!-- Tallo central -->
+  <line x1="256" y1="120" x2="256" y2="52" stroke="#86efac" stroke-width="20" stroke-linecap="round"/>
+
+  <!-- Hoja izquierda -->
+  <path d="M256 90 C238 80 200 66 196 54 C212 52 244 68 256 84Z" fill="#4ade80"/>
+  <!-- Hojita izquierda chica -->
+  <path d="M256 72 C244 65 222 57 220 50 C232 48 252 60 256 68Z" fill="#86efac" opacity="0.85"/>
+
+  <!-- Hoja derecha -->
+  <path d="M256 86 C274 76 312 62 316 50 C300 48 268 64 256 80Z" fill="#bbf7d0"/>
+  <!-- Hojita derecha chica -->
+  <path d="M256 68 C268 61 290 53 292 46 C280 44 260 56 256 64Z" fill="#4ade80" opacity="0.85"/>
+
+  <!-- Brote en la punta -->
+  <circle cx="256" cy="44" r="24" fill="#4ade80"/>
+  <circle cx="256" cy="44" r="12" fill="#bbf7d0"/>
 </svg>
