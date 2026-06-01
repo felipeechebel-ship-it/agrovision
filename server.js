@@ -13,10 +13,11 @@ const PLANET_KEY   = process.env.PLANET_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const SUPA_URL     = process.env.SUPABASE_URL;
 const SUPA_KEY     = process.env.SUPABASE_SECRET_KEY;
-const APP_URL           = process.env.APP_URL || 'https://agrovision.up.railway.app';
-const PREX_LINK_STANDARD = process.env.PREX_LINK_STANDARD || ''; // Link de pago Prex plan Standard
-const PREX_LINK_PRO      = process.env.PREX_LINK_PRO      || ''; // Link de pago Prex plan Pro
+const APP_URL            = process.env.APP_URL || 'https://agrovision.up.railway.app';
+const PREX_LINK_STANDARD = process.env.PREX_LINK_STANDARD || '';
+const PREX_LINK_PRO      = process.env.PREX_LINK_PRO      || '';
 const CONTACTO_EMAIL     = process.env.CONTACTO_EMAIL || 'hola@agrovision.uy';
+const ADMIN_SECRET       = process.env.ADMIN_SECRET || '';   // Secreto para activar planes
 
 // ─── Helpers REST directo a Supabase (sin @supabase/supabase-js ni auth-js) ──
 
@@ -719,6 +720,10 @@ app.post('/api/payment/create', checkAuth, async (req, res) => {
     });
   }
 
+  const activateUrl = ADMIN_SECRET
+    ? `${APP_URL}/admin/activate?uid=${uid}&plan=${plan}&secret=${ADMIN_SECRET}`
+    : null;
+
   res.json({
     method: 'prex',
     url: link,
@@ -726,29 +731,50 @@ app.post('/api/payment/create', checkAuth, async (req, res) => {
     nombre: p.nombre,
     precio: p.precio,
     uid,
-    confirmUrl: `${APP_URL}/?payment=pending`
+    activateUrl
   });
 });
 
-// Endpoint para que el admin active un plan manualmente (llamar con token admin)
-app.post('/api/payment/activate', checkAuth, async (req, res) => {
+// GET /admin/activate?uid=XXX&plan=standard&secret=ADMIN_SECRET
+// El admin lo toca desde WhatsApp y el plan se activa solo
+app.get('/admin/activate', async (req, res) => {
+  const { uid, plan, secret } = req.query;
+  if (!ADMIN_SECRET || secret !== ADMIN_SECRET) {
+    return res.status(403).send(`
+      <html><body style="font-family:sans-serif;text-align:center;padding:40px">
+      <h2 style="color:#dc2626">❌ Acceso denegado</h2>
+      <p>Secret incorrecto o no configurado.</p>
+      </body></html>`);
+  }
+  if (!uid || !plan || !PLANES[plan]) {
+    return res.status(400).send(`
+      <html><body style="font-family:sans-serif;text-align:center;padding:40px">
+      <h2 style="color:#dc2626">❌ Parámetros inválidos</h2>
+      </body></html>`);
+  }
   try {
-    const { uid, plan } = req.body;
-    if (!uid || !plan || !PLANES[plan]) return res.status(400).json({ error: 'Parámetros inválidos' });
-    // Solo el mismo usuario o un admin puede activar
-    if (req.user.id !== uid && req.user.rol !== 'admin') {
-      return res.status(403).json({ error: 'Sin permiso' });
-    }
     const planDb = PLANES[plan].plan_db;
     await dbUpdate('profiles', { id: uid }, {
       plan: planDb,
       plan_expires: new Date(Date.now() + 32 * 86400000).toISOString(),
       analisis_hoy: 0
     });
-    console.log(`Plan activado manualmente: usuario ${uid} → ${planDb}`);
-    res.json({ ok: true, plan: planDb });
+    console.log(`Plan activado por admin: usuario ${uid} → ${planDb}`);
+    const planLabel = plan === 'standard' ? 'Standard ($12/mes)' : 'Pro ($26/mes)';
+    res.send(`
+      <html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+      <body style="font-family:sans-serif;text-align:center;padding:40px;background:#f0fdf4">
+      <div style="max-width:400px;margin:0 auto;background:#fff;border-radius:16px;padding:32px;box-shadow:0 4px 20px rgba(0,0,0,.1)">
+        <div style="font-size:48px;margin-bottom:12px">✅</div>
+        <h2 style="color:#16a34a;margin-bottom:8px">Plan activado</h2>
+        <p style="color:#374151">El plan <b>${planLabel}</b> fue activado correctamente.</p>
+        <p style="color:#6b7280;font-size:13px;margin-top:16px">El usuario ya puede usar todas las funciones del plan.</p>
+      </div></body></html>`);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).send(`
+      <html><body style="font-family:sans-serif;text-align:center;padding:40px">
+      <h2 style="color:#dc2626">❌ Error</h2><p>${e.message}</p>
+      </body></html>`);
   }
 });
 

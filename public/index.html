@@ -2518,7 +2518,6 @@ async function startPayment(plan){
 }
 
 function showPrexModal(d){
-  // Crear/mostrar modal de pago Prex
   let m=document.getElementById('prexPayModal');
   if(!m){
     m=document.createElement('div');
@@ -2530,27 +2529,55 @@ function showPrexModal(d){
   const ud=JSON.parse(localStorage.getItem('agroUser')||'{}');
   const planLabel=d.plan==='standard'?'Standard':'Pro';
   const color=d.plan==='standard'?'#059669':'#2563eb';
-  m.innerHTML=`
-  <div style="background:#fff;border-radius:20px;max-width:420px;width:100%;padding:28px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center">
-    <div style="width:56px;height:56px;background:${color};border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:26px">💳</div>
-    <h2 style="font-size:20px;font-weight:700;color:#111;margin-bottom:4px">Pago con Prex</h2>
-    <p style="font-size:14px;color:#6b7280;margin-bottom:20px">Plan <b>${planLabel}</b> — USD ${d.precio}/mes</p>
 
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;text-align:left;margin-bottom:20px">
-      <p style="font-size:13px;font-weight:600;color:#065f46;margin-bottom:8px">Cómo pagar:</p>
-      <ol style="font-size:13px;color:#374151;line-height:1.7;padding-left:18px">
-        <li>Tocá <b>"Ir a Prex"</b> abajo</li>
-        <li>Completá el pago de <b>USD ${d.precio}</b></li>
-        <li>Guardá el comprobante</li>
-        <li>Mandánoslo por WhatsApp o email y activamos tu plan en minutos</li>
-      </ol>
+  // Mensaje WhatsApp: incluye link de activación si el backend lo devolvió
+  const activateText=d.activateUrl
+    ? `\n\n✅ *Link para activar el plan:*\n${d.activateUrl}`
+    : '';
+  const waMsg=encodeURIComponent(
+    `Hola! Acabo de pagar el plan *${planLabel}* de AgroVisión.\n`+
+    `📧 Email: ${ud.email||'(no registrado)'}\n`+
+    `💰 Monto: USD ${d.precio}`+
+    activateText
+  );
+  const waUrl=`https://wa.me/598091021122?text=${waMsg}`;
+
+  m.innerHTML=`
+  <div style="background:#fff;border-radius:20px;max-width:420px;width:100%;padding:28px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;max-height:92vh;overflow-y:auto">
+    <div style="width:56px;height:56px;background:${color};border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px">💳</div>
+    <h2 style="font-size:20px;font-weight:700;color:#111;margin-bottom:4px">Pago con Prex</h2>
+    <p style="font-size:14px;color:#6b7280;margin-bottom:18px">Plan <b>${planLabel}</b> — USD ${d.precio}/mes</p>
+
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:14px 16px;text-align:left;margin-bottom:18px">
+      <p style="font-size:13px;font-weight:700;color:#065f46;margin-bottom:8px">Pasos para activar tu plan:</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;gap:10px;align-items:flex-start">
+          <span style="background:#16a34a;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">1</span>
+          <span style="font-size:13px;color:#374151">Tocá <b>"Pagar en Prex"</b> y completá el pago de <b>USD ${d.precio}</b></span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start">
+          <span style="background:#16a34a;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">2</span>
+          <span style="font-size:13px;color:#374151">Tocá <b>"Ya pagué"</b> para avisarnos por WhatsApp</span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start">
+          <span style="background:#16a34a;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">3</span>
+          <span style="font-size:13px;color:#374151">Tu plan queda activo en <b>minutos</b></span>
+        </div>
+      </div>
     </div>
 
-    <a href="${d.url}" target="_blank" onclick="closePrexModal()" style="display:block;background:${color};color:#fff;font-weight:700;padding:13px 0;border-radius:12px;text-decoration:none;font-size:15px;margin-bottom:10px">Ir a Prex →</a>
-    <a href="https://wa.me/598XXXXXXXX?text=${encodeURIComponent('Hola! Pagué el plan '+planLabel+' de AgroVisión. Mi email: '+(ud.email||''))}" target="_blank" style="display:block;background:#25d366;color:#fff;font-weight:600;padding:11px 0;border-radius:12px;text-decoration:none;font-size:14px;margin-bottom:10px">📲 Enviar comprobante por WhatsApp</a>
-    <button onclick="closePrexModal()" style="width:100%;background:transparent;border:1px solid #d1d5db;color:#6b7280;font-weight:500;padding:10px 0;border-radius:10px;cursor:pointer;font-size:13px">Cancelar</button>
+    ${d.url?`<a href="${d.url}" target="_blank" style="display:block;background:${color};color:#fff;font-weight:700;padding:13px 0;border-radius:12px;text-decoration:none;font-size:15px;margin-bottom:10px">Pagar en Prex →</a>`:''}
+    <a href="${waUrl}" target="_blank" onclick="showPrexPaid()" style="display:block;background:#25d366;color:#fff;font-weight:700;padding:13px 0;border-radius:12px;text-decoration:none;font-size:15px;margin-bottom:10px">✅ Ya pagué — Avisar por WhatsApp</a>
+    <button onclick="closePrexModal()" style="width:100%;background:transparent;border:1px solid #d1d5db;color:#6b7280;font-weight:500;padding:10px 0;border-radius:10px;cursor:pointer;font-size:13px">Cerrar</button>
   </div>`;
   m.style.display='flex';
+}
+function showPrexPaid(){
+  // Pequeño feedback al usuario después de tocar "Ya pagué"
+  setTimeout(()=>{
+    closePrexModal();
+    showToast('¡Gracias! Te activamos el plan en minutos por WhatsApp.','success');
+  },500);
 }
 function closePrexModal(){
   const m=document.getElementById('prexPayModal');
