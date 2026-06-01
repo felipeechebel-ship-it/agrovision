@@ -2480,7 +2480,6 @@ async function startPayment(plan){
     setTimeout(()=>openAuthModal(),200);
     return;
   }
-  // Buscar el botón que disparó la acción y poner loading
   const btnMap={standard:'btnContratarPro',pro:'btnContratarFamilia'};
   const btn=document.getElementById(btnMap[plan]);
   const trialBtn=document.querySelector('#trialBanner button');
@@ -2495,13 +2494,67 @@ async function startPayment(plan){
     });
     const d=await r.json();
     if(!r.ok) throw new Error(d.error||'Error al iniciar pago');
-    // Redirigir a MercadoPago checkout
-    window.location.href=d.url;
+
+    if(d.method==='prex'){
+      // Mostrar modal de instrucciones Prex
+      closePlanesModal();
+      showPrexModal(d);
+    }else if(d.method==='email'){
+      // Fallback: abrir email de contacto
+      closePlanesModal();
+      const ud=JSON.parse(localStorage.getItem('agroUser')||'{}');
+      const sub=encodeURIComponent(`Quiero el plan ${d.nombre} — AgroVisión`);
+      const body=encodeURIComponent(`Hola! Quiero suscribirme al plan ${d.nombre} (USD ${d.precio}/mes).\n\nMi email: ${ud.email||''}`);
+      window.open(`mailto:${d.email}?subject=${sub}&body=${body}`,'_blank');
+    }else if(d.url){
+      window.location.href=d.url;
+    }
   }catch(e){
     alert('No se pudo iniciar el pago: '+e.message);
+  }finally{
     if(btn){btn.disabled=false;btn.textContent=origText;}
     if(trialBtn&&trialBtn!==btn){trialBtn.disabled=false;}
   }
+}
+
+function showPrexModal(d){
+  // Crear/mostrar modal de pago Prex
+  let m=document.getElementById('prexPayModal');
+  if(!m){
+    m=document.createElement('div');
+    m.id='prexPayModal';
+    m.style.cssText='display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:16px';
+    document.body.appendChild(m);
+    m.addEventListener('click',function(e){if(e.target===this)closePrexModal();});
+  }
+  const ud=JSON.parse(localStorage.getItem('agroUser')||'{}');
+  const planLabel=d.plan==='standard'?'Standard':'Pro';
+  const color=d.plan==='standard'?'#059669':'#2563eb';
+  m.innerHTML=`
+  <div style="background:#fff;border-radius:20px;max-width:420px;width:100%;padding:28px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center">
+    <div style="width:56px;height:56px;background:${color};border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:26px">💳</div>
+    <h2 style="font-size:20px;font-weight:700;color:#111;margin-bottom:4px">Pago con Prex</h2>
+    <p style="font-size:14px;color:#6b7280;margin-bottom:20px">Plan <b>${planLabel}</b> — USD ${d.precio}/mes</p>
+
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;text-align:left;margin-bottom:20px">
+      <p style="font-size:13px;font-weight:600;color:#065f46;margin-bottom:8px">Cómo pagar:</p>
+      <ol style="font-size:13px;color:#374151;line-height:1.7;padding-left:18px">
+        <li>Tocá <b>"Ir a Prex"</b> abajo</li>
+        <li>Completá el pago de <b>USD ${d.precio}</b></li>
+        <li>Guardá el comprobante</li>
+        <li>Mandánoslo por WhatsApp o email y activamos tu plan en minutos</li>
+      </ol>
+    </div>
+
+    <a href="${d.url}" target="_blank" onclick="closePrexModal()" style="display:block;background:${color};color:#fff;font-weight:700;padding:13px 0;border-radius:12px;text-decoration:none;font-size:15px;margin-bottom:10px">Ir a Prex →</a>
+    <a href="https://wa.me/598XXXXXXXX?text=${encodeURIComponent('Hola! Pagué el plan '+planLabel+' de AgroVisión. Mi email: '+(ud.email||''))}" target="_blank" style="display:block;background:#25d366;color:#fff;font-weight:600;padding:11px 0;border-radius:12px;text-decoration:none;font-size:14px;margin-bottom:10px">📲 Enviar comprobante por WhatsApp</a>
+    <button onclick="closePrexModal()" style="width:100%;background:transparent;border:1px solid #d1d5db;color:#6b7280;font-weight:500;padding:10px 0;border-radius:10px;cursor:pointer;font-size:13px">Cancelar</button>
+  </div>`;
+  m.style.display='flex';
+}
+function closePrexModal(){
+  const m=document.getElementById('prexPayModal');
+  if(m)m.style.display='none';
 }
 
 function contactarPlan(nombre){
