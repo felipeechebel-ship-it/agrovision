@@ -13,11 +13,10 @@ const PLANET_KEY   = process.env.PLANET_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const SUPA_URL     = process.env.SUPABASE_URL;
 const SUPA_KEY     = process.env.SUPABASE_SECRET_KEY;
-const APP_URL            = process.env.APP_URL || 'https://agrovision.up.railway.app';
-const PREX_LINK_STANDARD = process.env.PREX_LINK_STANDARD || '';
-const PREX_LINK_PRO      = process.env.PREX_LINK_PRO      || '';
-const CONTACTO_EMAIL     = process.env.CONTACTO_EMAIL || 'hola@agrovision.uy';
-const ADMIN_SECRET       = process.env.ADMIN_SECRET || '';   // Secreto para activar planes
+const APP_URL        = process.env.APP_URL || 'https://agrovision.up.railway.app';
+const PREX_CUENTA    = '1571365';                            // Cuenta Prex del administrador
+const CONTACTO_EMAIL = process.env.CONTACTO_EMAIL || 'hola@agrovision.uy';
+const ADMIN_SECRET   = process.env.ADMIN_SECRET || '';       // Secreto para activar planes
 
 // ─── Helpers REST directo a Supabase (sin @supabase/supabase-js ni auth-js) ──
 
@@ -708,25 +707,13 @@ app.post('/api/payment/create', checkAuth, async (req, res) => {
   const p   = PLANES[plan];
   const uid = req.user?.id || '';
 
-  const link = plan === 'standard' ? PREX_LINK_STANDARD : PREX_LINK_PRO;
-  if (!link) {
-    // Sin link configurado: fallback a email
-    return res.json({
-      method: 'email',
-      email: CONTACTO_EMAIL,
-      plan,
-      nombre: p.nombre,
-      precio: p.precio
-    });
-  }
-
   const activateUrl = ADMIN_SECRET
     ? `${APP_URL}/admin/activate?uid=${uid}&plan=${plan}&secret=${ADMIN_SECRET}`
     : null;
 
   res.json({
     method: 'prex',
-    url: link,
+    cuenta: PREX_CUENTA,
     plan,
     nombre: p.nombre,
     precio: p.precio,
